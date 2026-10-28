@@ -1,0 +1,339 @@
+[
+  {
+    "id": "addition-basic-no-carry",
+    "sourceSkillId": "3.1.1",
+    "grade": [1, 2],
+    "topic": "addition",
+    "difficulty": ["easy", "medium", "hard"],
+    "questionType": "number-input",
+    "tags": ["calc", "addition", "no-carry"],
+    "variables": {
+      "a": { "type": "integer", "min": 1, "max": 90 },
+      "b": { "type": "integer", "min": 1, "max": 90 }
+    },
+    "constraints": ["sumWithinLimit", "noCarry"],
+    "promptTemplate": "{{a}} + {{b}} = ?",
+    "answerRule": "sum",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Tách hàng chục và hàng đơn vị, rồi cộng từng phần. Với số nhỏ, con có thể bắt đầu từ {{a}} và đếm thêm {{b}}.",
+    "solutionTemplate": "{{a}} + {{b}} = {{answer}}.",
+    "timeLimitSeconds": 30,
+    "validationExamples": [
+      { "variables": { "a": 2, "b": 3 }, "answer": 5 },
+      { "variables": { "a": 23, "b": 14 }, "answer": 37 }
+    ]
+  },
+  {
+    "id": "addition-word-marbles",
+    "sourceSkillId": "8.2.3",
+    "grade": [1, 2],
+    "topic": "addition",
+    "difficulty": ["medium", "hard"],
+    "questionType": "word-problem",
+    "tags": ["word", "addition", "no-carry"],
+    "variables": {
+      "name": { "type": "choice", "values": ["An", "Bình", "Lan", "Minh"] },
+      "item": { "type": "choice", "values": ["viên bi", "quả táo", "cây bút", "quyển sách"] },
+      "a": { "type": "integer", "min": 2, "max": 80 },
+      "b": { "type": "integer", "min": 1, "max": 40 }
+    },
+    "constraints": ["sumWithinLimit", "noCarry"],
+    "promptTemplate": "{{name}} có {{a}} {{item}}. Bạn cho thêm {{b}} {{item}}. Hỏi {{name}} có tất cả bao nhiêu {{item}}?",
+    "answerRule": "sum",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Bài toán hỏi tất cả, nên dùng phép cộng: {{a}} + {{b}}.",
+    "solutionTemplate": "Ban đầu có {{a}} {{item}}, nhận thêm {{b}} {{item}}. Tổng là {{a}} + {{b}} = {{answer}} {{item}}.",
+    "timeLimitSeconds": 25,
+    "validationExamples": [
+      { "variables": { "name": "An", "item": "viên bi", "a": 34, "b": 23 }, "answer": 57 }
+    ]
+  },
+  {
+    "id": "subtraction-basic-no-borrow",
+    "sourceSkillId": "3.1.4",
+    "grade": [1, 2],
+    "topic": "subtraction",
+    "difficulty": ["easy", "medium", "hard"],
+    "questionType": "number-input",
+    "tags": ["calc", "subtraction", "no-borrow"],
+    "variables": {
+      "a": { "type": "integer", "min": 2, "max": 99 },
+      "b": { "type": "integer", "min": 1, "max": 90 }
+    },
+    "constraints": ["differenceNonNegative", "differenceWithinLimit", "noBorrow"],
+    "promptTemplate": "{{a}} - {{b}} = ?",
+    "answerRule": "difference",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Trừ hàng chục trước, rồi trừ hàng đơn vị. Nếu số nhỏ, con có thể bắt đầu từ {{a}} và bớt đi {{b}}.",
+    "solutionTemplate": "{{a}} - {{b}} = {{answer}}.",
+    "timeLimitSeconds": 30,
+    "validationExamples": [
+      { "variables": { "a": 7, "b": 3 }, "answer": 4 },
+      { "variables": { "a": 57, "b": 25 }, "answer": 32 }
+    ]
+  },
+  {
+    "id": "subtraction-word-remaining",
+    "sourceSkillId": "8.2.4",
+    "grade": [1, 2],
+    "topic": "subtraction",
+    "difficulty": ["medium", "hard"],
+    "questionType": "word-problem",
+    "tags": ["word", "subtraction", "no-borrow"],
+    "variables": {
+      "name": { "type": "choice", "values": ["An", "Bình", "Lan", "Minh"] },
+      "item": { "type": "choice", "values": ["viên bi", "quả cam", "cây bút", "quyển vở"] },
+      "a": { "type": "integer", "min": 5, "max": 90 },
+      "b": { "type": "integer", "min": 1, "max": 50 }
+    },
+    "constraints": ["differenceNonNegative", "differenceWithinLimit", "noBorrow"],
+    "promptTemplate": "{{name}} có {{a}} {{item}}. {{name}} cho bạn {{b}} {{item}}. Hỏi {{name}} còn lại bao nhiêu {{item}}?",
+    "answerRule": "difference",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Bài toán hỏi còn lại, nên dùng phép trừ: {{a}} - {{b}}.",
+    "solutionTemplate": "Ban đầu có {{a}} {{item}}, cho đi {{b}} {{item}}. Còn lại {{a}} - {{b}} = {{answer}} {{item}}.",
+    "timeLimitSeconds": 25,
+    "validationExamples": [
+      { "variables": { "name": "An", "item": "quả cam", "a": 56, "b": 24 }, "answer": 32 }
+    ]
+  },
+  {
+    "id": "comparison-two-numbers",
+    "sourceSkillId": "1.1.4",
+    "grade": [1, 2],
+    "topic": "comparison",
+    "difficulty": ["easy", "medium", "hard"],
+    "questionType": "comparison-sign",
+    "tags": ["comparison", "sign"],
+    "variables": {
+      "left": { "type": "integer", "min": 0, "max": 99 },
+      "right": { "type": "integer", "min": 0, "max": 99 }
+    },
+    "constraints": ["valuesWithinLimit"],
+    "promptTemplate": "{{left}} __ {{right}}",
+    "answerRule": "compareValues",
+    "choicesRule": "comparisonSigns",
+    "hintTemplate": "So sánh {{left}} và {{right}}. Số lớn hơn nằm về phía dấu mở rộng.",
+    "solutionTemplate": "{{left}} {{answer}} {{right}}.",
+    "timeLimitSeconds": 30,
+    "validationExamples": [
+      { "variables": { "left": 2, "right": 3 }, "answer": "<" },
+      { "variables": { "left": 4, "right": 4 }, "answer": "=" }
+    ]
+  },
+  {
+    "id": "comparison-expression",
+    "sourceSkillId": "8.3.2",
+    "grade": [1, 2],
+    "topic": "comparison",
+    "difficulty": ["medium", "hard"],
+    "questionType": "comparison-sign",
+    "tags": ["comparison", "expression", "no-carry", "no-borrow"],
+    "variables": {
+      "a": { "type": "integer", "min": 1, "max": 80 },
+      "b": { "type": "integer", "min": 1, "max": 40 },
+      "c": { "type": "integer", "min": 2, "max": 90 },
+      "d": { "type": "integer", "min": 1, "max": 50 }
+    },
+    "constraints": ["sumWithinLimit", "noCarry", "rightDifferenceNonNegative", "rightNoBorrow"],
+    "promptTemplate": "{{a}} + {{b}} __ {{c}} - {{d}}",
+    "answerRule": "compareExpression",
+    "choicesRule": "comparisonSigns",
+    "hintTemplate": "Tính từng vế trước: {{a}} + {{b}} và {{c}} - {{d}}, rồi so sánh hai kết quả.",
+    "solutionTemplate": "{{a}} + {{b}} = {{leftValue}}. {{c}} - {{d}} = {{rightValue}}. Vì vậy {{leftValue}} {{answer}} {{rightValue}}.",
+    "timeLimitSeconds": 25,
+    "validationExamples": [
+      { "variables": { "a": 34, "b": 23, "c": 68, "d": 34 }, "answer": ">" }
+    ]
+  },
+  {
+    "id": "missing-addend-right",
+    "sourceSkillId": "3.1.3",
+    "grade": [1, 2],
+    "topic": "missing-number",
+    "difficulty": ["easy", "medium", "hard"],
+    "questionType": "missing-number",
+    "tags": ["missing-number", "addition"],
+    "variables": {
+      "a": { "type": "integer", "min": 1, "max": 80 },
+      "result": { "type": "integer", "min": 2, "max": 99 }
+    },
+    "constraints": ["resultGreaterThanA", "missingAddWithinLimit", "missingAddNoCarry"],
+    "promptTemplate": "{{a}} + __ = {{result}}",
+    "answerRule": "missingAddend",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Muốn tìm số còn thiếu, lấy {{result}} - {{a}}.",
+    "solutionTemplate": "Số cần điền là {{result}} - {{a}} = {{answer}}. Vậy {{a}} + {{answer}} = {{result}}.",
+    "timeLimitSeconds": 25,
+    "validationExamples": [
+      { "variables": { "a": 1, "result": 4 }, "answer": 3 }
+    ]
+  },
+  {
+    "id": "missing-subtrahend",
+    "sourceSkillId": "8.2.6",
+    "grade": [1, 2],
+    "topic": "missing-number",
+    "difficulty": ["medium", "hard"],
+    "questionType": "missing-number",
+    "tags": ["missing-number", "subtraction"],
+    "variables": {
+      "a": { "type": "integer", "min": 2, "max": 99 },
+      "result": { "type": "integer", "min": 0, "max": 90 }
+    },
+    "constraints": ["aGreaterThanResult", "valuesWithinLimit", "missingSubNoBorrow"],
+    "promptTemplate": "{{a}} - __ = {{result}}",
+    "answerRule": "missingSubtrahend",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Muốn tìm số bị bớt đi, lấy {{a}} - {{result}}.",
+    "solutionTemplate": "Số cần điền là {{a}} - {{result}} = {{answer}}. Vậy {{a}} - {{answer}} = {{result}}.",
+    "timeLimitSeconds": 25,
+    "validationExamples": [
+      { "variables": { "a": 67, "result": 32 }, "answer": 35 }
+    ]
+  },
+  {
+    "id": "carry-addition-basic",
+    "sourceSkillId": "3.2.1",
+    "grade": [2],
+    "topic": "carry",
+    "difficulty": ["easy", "medium", "hard"],
+    "questionType": "number-input",
+    "tags": ["calc", "addition", "carry"],
+    "variables": {
+      "a": { "type": "integer", "min": 2, "max": 98 },
+      "b": { "type": "integer", "min": 2, "max": 98 }
+    },
+    "constraints": ["hasCarry", "withinCarryRange"],
+    "promptTemplate": "{{a}} + {{b}} = ?",
+    "answerRule": "sum",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Cộng hàng đơn vị trước: {{a}} và {{b}}. Nếu hàng đơn vị đủ 10 thì nhớ 1 sang hàng chục.",
+    "solutionTemplate": "{{a}} + {{b}} = {{answer}}. Khi cộng hàng đơn vị có nhớ, ta nhớ 1 sang hàng chục.",
+    "timeLimitSeconds": 30,
+    "validationExamples": [
+      { "variables": { "a": 8, "b": 7 }, "answer": 15 },
+      { "variables": { "a": 47, "b": 38 }, "answer": 85 }
+    ]
+  },
+  {
+    "id": "carry-subtraction-basic",
+    "sourceSkillId": "3.2.4",
+    "grade": [2],
+    "topic": "carry",
+    "difficulty": ["easy", "medium", "hard"],
+    "questionType": "number-input",
+    "tags": ["calc", "subtraction", "borrow"],
+    "variables": {
+      "a": { "type": "integer", "min": 2, "max": 99 },
+      "b": { "type": "integer", "min": 2, "max": 98 }
+    },
+    "constraints": ["hasBorrow", "withinCarryRange"],
+    "promptTemplate": "{{a}} - {{b}} = ?",
+    "answerRule": "difference",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Trừ hàng đơn vị trước. Nếu hàng đơn vị của {{a}} nhỏ hơn hàng đơn vị của {{b}}, con mượn 1 chục rồi trừ.",
+    "solutionTemplate": "{{a}} - {{b}} = {{answer}}. Khi hàng đơn vị không đủ trừ, ta mượn 1 chục để trừ.",
+    "timeLimitSeconds": 30,
+    "validationExamples": [
+      { "variables": { "a": 15, "b": 7 }, "answer": 8 },
+      { "variables": { "a": 63, "b": 28 }, "answer": 35 }
+    ]
+  },
+  {
+    "id": "carry-addition-word",
+    "sourceSkillId": "8.2.3",
+    "grade": [2],
+    "topic": "carry",
+    "difficulty": ["medium", "hard"],
+    "questionType": "word-problem",
+    "tags": ["word", "addition", "carry"],
+    "variables": {
+      "name": { "type": "choice", "values": ["An", "Bình", "Lan", "Minh"] },
+      "item": { "type": "choice", "values": ["viên bi", "quả táo", "cây bút", "quyển sách"] },
+      "a": { "type": "integer", "min": 2, "max": 80 },
+      "b": { "type": "integer", "min": 2, "max": 40 }
+    },
+    "constraints": ["hasCarry", "withinCarryRange"],
+    "promptTemplate": "{{name}} có {{a}} {{item}}. Bạn cho thêm {{b}} {{item}}. Hỏi {{name}} có tất cả bao nhiêu {{item}}?",
+    "answerRule": "sum",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Bài toán hỏi tất cả, nên dùng phép cộng: {{a}} + {{b}}. Nhớ kiểm tra hàng đơn vị có nhớ không.",
+    "solutionTemplate": "Ban đầu có {{a}} {{item}}, nhận thêm {{b}} {{item}}. Tổng là {{a}} + {{b}} = {{answer}} {{item}}.",
+    "timeLimitSeconds": 25,
+    "validationExamples": [
+      { "variables": { "name": "An", "item": "viên bi", "a": 8, "b": 7 }, "answer": 15 }
+    ]
+  },
+  {
+    "id": "carry-subtraction-word",
+    "sourceSkillId": "8.2.4",
+    "grade": [2],
+    "topic": "carry",
+    "difficulty": ["medium", "hard"],
+    "questionType": "word-problem",
+    "tags": ["word", "subtraction", "borrow"],
+    "variables": {
+      "name": { "type": "choice", "values": ["An", "Bình", "Lan", "Minh"] },
+      "item": { "type": "choice", "values": ["viên bi", "quả cam", "cây bút", "quyển vở"] },
+      "a": { "type": "integer", "min": 2, "max": 90 },
+      "b": { "type": "integer", "min": 2, "max": 50 }
+    },
+    "constraints": ["hasBorrow", "withinCarryRange"],
+    "promptTemplate": "{{name}} có {{a}} {{item}}. {{name}} cho bạn {{b}} {{item}}. Hỏi {{name}} còn lại bao nhiêu {{item}}?",
+    "answerRule": "difference",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Bài toán hỏi còn lại, nên dùng phép trừ: {{a}} - {{b}}. Nếu hàng đơn vị không đủ trừ, con mượn 1 chục.",
+    "solutionTemplate": "Ban đầu có {{a}} {{item}}, cho đi {{b}} {{item}}. Còn lại {{a}} - {{b}} = {{answer}} {{item}}.",
+    "timeLimitSeconds": 25,
+    "validationExamples": [
+      { "variables": { "name": "Lan", "item": "quả cam", "a": 15, "b": 7 }, "answer": 8 }
+    ]
+  },
+  {
+    "id": "carry-missing-addend",
+    "sourceSkillId": "3.1.3",
+    "grade": [2],
+    "topic": "carry",
+    "difficulty": ["easy", "medium", "hard"],
+    "questionType": "missing-number",
+    "tags": ["missing-number", "addition", "carry"],
+    "variables": {
+      "a": { "type": "integer", "min": 2, "max": 80 },
+      "result": { "type": "integer", "min": 10, "max": 99 }
+    },
+    "constraints": ["missingAddHasCarry", "missingAddWithinCarryRange"],
+    "promptTemplate": "{{a}} + __ = {{result}}",
+    "answerRule": "missingAddend",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Muốn tìm số còn thiếu, lấy {{result}} - {{a}}. Kiểm tra xem phép cộng có nhớ không.",
+    "solutionTemplate": "Số cần điền là {{result}} - {{a}} = {{answer}}. Vậy {{a}} + {{answer}} = {{result}}.",
+    "timeLimitSeconds": 25,
+    "validationExamples": [
+      { "variables": { "a": 8, "result": 15 }, "answer": 7 }
+    ]
+  },
+  {
+    "id": "carry-missing-subtrahend",
+    "sourceSkillId": "8.2.6",
+    "grade": [2],
+    "topic": "carry",
+    "difficulty": ["easy", "medium", "hard"],
+    "questionType": "missing-number",
+    "tags": ["missing-number", "subtraction", "borrow"],
+    "variables": {
+      "a": { "type": "integer", "min": 10, "max": 99 },
+      "result": { "type": "integer", "min": 2, "max": 90 }
+    },
+    "constraints": ["missingSubHasBorrow", "missingSubWithinCarryRange"],
+    "promptTemplate": "{{a}} - __ = {{result}}",
+    "answerRule": "missingSubtrahend",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Muốn tìm số bị bớt đi, lấy {{a}} - {{result}}. Nếu hàng đơn vị không đủ trừ, phép trừ có mượn.",
+    "solutionTemplate": "Số cần điền là {{a}} - {{result}} = {{answer}}. Vậy {{a}} - {{answer}} = {{result}}.",
+    "timeLimitSeconds": 25,
+    "validationExamples": [
+      { "variables": { "a": 15, "result": 8 }, "answer": 7 }
+    ]
+  }
+]

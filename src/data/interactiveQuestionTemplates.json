@@ -1,0 +1,87 @@
+[
+  {
+    "id": "interactive-sort-numbers",
+    "questionType": "sort-numbers",
+    "sourceSkillId": "interactive.sort-numbers",
+    "promptTemplates": {
+      "asc": "Hay sap xep cac so sau tu be den lon",
+      "desc": "Hay sap xep cac so sau tu lon den be"
+    },
+    "generationRules": {
+      "easy": { "count": [6, 6], "range": [1, 20] },
+      "medium": { "count": [7, 8], "range": [1, 99] },
+      "hard": { "count": [9, 10], "range": [1, 99] },
+      "uniqueNumbers": true,
+      "directions": ["asc", "desc"]
+    },
+    "payloadFields": ["kind", "direction", "initialPool", "targetSlots", "correctOrder"],
+    "timeRule": "doubleBaseTimeByDifficulty",
+    "answerRule": "arrayEquals(correctOrder)"
+  },
+  {
+    "id": "interactive-missing-equation",
+    "questionType": "missing-equation",
+    "sourceSkillId": "interactive.missing-equation",
+    "generationRules": {
+      "patterns": ["blank-left-add", "blank-right-add", "blank-right-subtract", "blank-left-subtract"],
+      "easyPatterns": ["blank-left-add", "blank-right-add"],
+      "mediumPatterns": ["blank-left-add", "blank-right-add", "blank-right-subtract"],
+      "range": [1, 99],
+      "easyRange": [1, 20],
+      "additionNoCarry": true,
+      "subtractionNoBorrow": true,
+      "choiceCount": 4,
+      "singleCorrectChoice": true,
+      "normalizeNumericAnswer": true
+    },
+    "payloadFields": ["kind", "pattern", "left", "operator", "right", "result", "blankPosition"],
+    "answerRule": "numericEquals(correctAnswer)"
+  },
+  {
+    "id": "interactive-clock-hour",
+    "questionType": "clock-hour",
+    "sourceSkillId": "interactive.clock-hour",
+    "promptTemplate": "Dong ho chi may gio?",
+    "generationRules": {
+      "hourRange": [1, 12],
+      "minuteHand": 12,
+      "easyHours": [3, 6, 9, 12],
+      "choiceCount": 4,
+      "hardUsesNearbyDistractors": true
+    },
+    "payloadFields": ["kind", "hour", "minuteHand"],
+    "answerRule": "choiceEquals(hour + ' gio')"
+  },
+  {
+    "id": "interactive-weekday-blank",
+    "questionType": "weekday-blank",
+    "sourceSkillId": "interactive.weekday-blank",
+    "promptTemplate": "Chon ngay trong tuan",
+    "generationRules": {
+      "cycle": ["Thu 2", "Thu 3", "Thu 4", "Thu 5", "Thu 6", "Thu 7", "Chu nhat"],
+      "easyLength": 4,
+      "mediumLength": 5,
+      "hardLength": 6,
+      "allowWrapFromMedium": true,
+      "choiceCount": 4
+    },
+    "payloadFields": ["kind", "sequence", "blankIndex", "displaySequence"],
+    "answerRule": "choiceEquals(sequence[blankIndex])"
+  },
+  {
+    "id": "interactive-relative-date",
+    "questionType": "relative-date",
+    "sourceSkillId": "interactive.relative-date",
+    "promptTemplate": "Tim gia tri dung",
+    "generationRules": {
+      "calendarModes": ["weekday", "monthDate"],
+      "easyMode": "weekday",
+      "weekdayAllowsWrapFromMedium": true,
+      "monthDateYesterdayRange": [1, 29],
+      "formatMonthDate": "twoDigits",
+      "shuffleAnswerCards": true
+    },
+    "payloadFields": ["kind", "calendarMode", "shuffledValues", "correctMapping"],
+    "answerRule": "mappingEquals(correctMapping)"
+  }
+]

@@ -1,0 +1,512 @@
+Đã chốt. Dưới đây là bản cập nhật cuối cho requirement/PRD của **Cú Mèo Toán Học**.
+
+**Tên Game**
+
+**Cú Mèo Toán Học**
+
+Web game học toán lớp 1, lớp 2 theo phong cách 2D phẳng, đơn giản, sinh động. Học sinh tự chơi ở nhà, luyện cộng, trừ, so sánh trong phạm vi 100, bám sát kiến thức chương trình.
+
+**Công Nghệ Đề Xuất**
+
+Dùng **React + Vite + CSS thuần**.
+
+Lý do phù hợp:
+
+- Web game đơn giản, không cần backend.
+- Không cần database.
+- Lưu tiến độ bằng `localStorage`.
+- Dễ làm nhiều màn hình game.
+- Dễ thêm hiệu ứng, âm thanh, hoạt ảnh cú mèo.
+- Dễ mở rộng sau này.
+
+**Cơ Chế Đăng Nhập**
+
+Đăng nhập đơn giản bằng:
+
+- Tên học sinh.
+- Lớp 1 hoặc lớp 2.
+- Avatar cú mèo mặc định.
+
+Không cần:
+
+- Email.
+- Mật khẩu.
+- Tài khoản server.
+- Database.
+
+Tiến độ lưu trên thiết bị bằng `localStorage`.
+
+**Chế Độ Chơi**
+
+Có 2 chế độ:
+
+**Luyện tập**
+
+- Dành cho học sinh làm quen.
+- Có thể có thời gian nhưng áp lực nhẹ hơn.
+- Sai không phạt nặng.
+- Có gợi ý sau 2 lần sai liên tiếp.
+- Phù hợp để ôn bài.
+
+**Thử thách**
+
+- Mỗi lượt gồm 10 câu.
+- Có giới hạn thời gian mỗi câu.
+- Có điểm số.
+- Có thưởng/phạt.
+- Có màn kết quả sau khi hoàn thành.
+
+**Độ Khó**
+
+Có 3 mức:
+
+```text
+Dễ:
+- Câu hỏi đơn giản.
+- Chủ yếu chọn đáp án.
+- 3 lựa chọn.
+- Thời gian: 30 giây/câu.
+
+Vừa:
+- Kết hợp chọn đáp án và nhập đáp án.
+- 4 lựa chọn nếu là câu trắc nghiệm.
+- Thời gian: 25 giây/câu.
+
+Khó:
+- Ưu tiên nhập đáp án.
+- Có điền số còn thiếu, so sánh biểu thức.
+- Thời gian: 20 giây/câu.
+```
+
+**Mở Khóa Theo Tiến Độ**
+
+Game mở khóa theo **số thử thách đã hoàn thành**, không theo tổng điểm.
+
+Gợi ý:
+
+```text
+Ban đầu:
+- Mở Luyện tập Dễ.
+- Mở Thử thách Dễ.
+- Mở chủ đề Cộng, Trừ, So sánh cơ bản.
+
+Hoàn thành 3 thử thách:
+- Mở độ khó Vừa.
+
+Hoàn thành 6 thử thách:
+- Mở độ khó Khó.
+
+Hoàn thành 8 thử thách:
+- Mở màn Tổng hợp.
+
+Hoàn thành 12 thử thách:
+- Mở Tháp Thông Thái.
+```
+
+Màn bị khóa hiển thị rõ:
+
+```text
+Hoàn thành thêm 2 thử thách để mở khóa
+```
+
+**Chủ Đề Học**
+
+Các chủ đề chính:
+
+- Cộng số.
+- Trừ số.
+- So sánh số.
+- Tổng hợp.
+
+Lớp 1:
+
+- Cộng, trừ trong phạm vi 10, 20.
+- Đếm số, so sánh số.
+- Điền dấu `>`, `<`, `=`.
+- Câu hỏi đơn giản, trực quan.
+
+Lớp 2:
+
+- Cộng, trừ trong phạm vi 100.
+- Cộng, trừ không nhớ.
+- So sánh số có hai chữ số.
+- So sánh biểu thức đơn giản.
+- Tìm số còn thiếu.
+
+**Luật Thời Gian**
+
+Mỗi câu có giới hạn thời gian.
+
+Khi hết giờ:
+
+- Tính là sai 1 lần.
+- Không cho làm lại câu đó.
+- Tự động chuyển sang câu tiếp theo.
+- Có hiệu ứng báo hết giờ nhẹ.
+- Nếu hết giờ/sai 2 lần liên tiếp: hiện gợi ý ở câu tiếp theo.
+- Nếu hết giờ/sai 3 lần liên tiếp: trừ điểm.
+
+**Luật Điểm**
+
+```text
+Đúng lần đầu: +10 điểm
+Đúng sau 1 lần sai: +5 điểm
+Sai lần 1: không trừ điểm
+Sai lần 2 liên tiếp: hiện gợi ý
+Sai lần 3 liên tiếp: -5 điểm
+Hết giờ: tính như sai 1 lần
+Hoàn thành 8/10 câu đúng: +20 điểm
+Hoàn thành 10/10 câu đúng: +50 điểm + huy hiệu
+```
+
+Điểm không được âm.
+
+**Âm Thanh**
+
+Có âm thanh khi load game:
+
+- Nhạc/chime ngắn khi mở game hoặc vào màn hình chính.
+- Không phát nhạc nền liên tục trong màn chơi để tránh gây mất tập trung.
+
+Trong lúc chơi chỉ dùng hiệu ứng âm thanh:
+
+- Đúng: âm thanh vui.
+- Sai: âm thanh nhẹ.
+- Hết giờ: âm thanh ngắn.
+- Hoàn thành thử thách: âm thanh chúc mừng.
+
+Cần có nút bật/tắt âm thanh.
+
+**Linh Vật**
+
+Linh vật chính: **cú mèo thông thái**.
+
+Vai trò:
+
+- Chào học sinh.
+- Đưa gợi ý.
+- Phản hồi đúng/sai.
+- Chúc mừng khi hoàn thành.
+- Hiện biểu cảm vui, suy nghĩ, khích lệ.
+
+**Concept UI**
+
+Chủ đề đề xuất: **Khu Rừng Toán Học**
+
+Các khu vực:
+
+- **Nhà Cú Mèo**: trang chủ.
+- **Cây Cộng Số**: chủ đề cộng.
+- **Cầu Phép Trừ**: chủ đề trừ.
+- **Suối So Sánh**: chủ đề so sánh.
+- **Đỉnh Núi Tổng Hợp**: thử thách tổng hợp.
+- **Tháp Thông Thái**: màn nâng cao.
+
+Phong cách:
+
+- 2D phẳng.
+- Nút lớn, dễ bấm.
+- Màu tươi sáng.
+- Font chữ rõ ràng.
+- Ít chữ, nhiều biểu tượng.
+- Responsive cho mobile/tablet/desktop.
+
+**MVP Chốt Cuối**
+
+Phiên bản đầu tiên cần có:
+
+- Tên game: **Cú Mèo Toán Học**.
+- React + Vite + CSS thuần.
+- Đăng nhập bằng tên học sinh.
+- Chọn lớp 1/lớp 2.
+- Lưu tiến độ bằng `localStorage`.
+- Chế độ Luyện tập và Thử thách.
+- Chủ đề Cộng, Trừ, So sánh, Tổng hợp.
+- Độ khó Dễ, Vừa, Khó.
+- Mở khóa theo số thử thách hoàn thành.
+- Mỗi thử thách 10 câu.
+- Có giới hạn thời gian.
+- Hết giờ tự chuyển câu tiếp theo.
+- Có gợi ý sau 2 lần sai liên tiếp.
+- Sai 3 lần liên tiếp trừ điểm.
+- Có màn kết quả.
+- Có huy hiệu.
+- Có cú mèo 2D.
+- Có âm thanh load game, đúng, sai, hết giờ, hoàn thành.
+- Giao diện tiếng Việt hoàn toàn.
+- Phù hợp học sinh tự chơi ở nhà.
+
+**Yêu Cầu Mới: Template JSON Sinh Câu Hỏi Random**
+
+Game cần có một file template dạng `.json` dùng để sinh dữ liệu câu hỏi khi người dùng chơi, thay vì chỉ dùng danh sách câu hỏi cố định.
+
+Nguồn nội dung ban đầu lấy từ `specs/knowledge/skill-generate-math.md`, trong đó các dạng bài cần được tổng hợp thành template có thể tái sử dụng:
+
+- Dạng bài: trắc nghiệm, điền khuyết, điền ô trống, điền dấu, bài toán lời văn, tính toán trực tiếp, sắp xếp số bằng kéo thả, tìm số trong ô trống, xem giờ trên đồng hồ kim, chọn ngày trong tuần, kéo thả hôm qua/hôm nay/ngày mai.
+- Chủ đề: đếm số, so sánh, sắp xếp thứ tự số, cộng/trừ trong phạm vi 10/20/100, điền số còn thiếu, hình học cơ bản, đo độ dài, thời gian, ngày trong tuần, ngày trong tháng, tổng hợp.
+- Mức độ: dễ, vừa, khó.
+- Mỗi template sinh được nhiều biến thể bằng cách random con số, đối tượng, tên nhân vật, phép tính, lựa chọn đáp án và ngữ cảnh.
+
+Template JSON phải đảm bảo:
+
+- Có `id`, `topic`, `grade`, `difficulty`, `questionType`, `tags`.
+- Có phần `variables` mô tả biến random, miền giá trị và ràng buộc hợp lệ.
+- Có `promptTemplate` để render đề bài từ biến.
+- Có `answerExpression` hoặc `answerRule` để tính đáp án đúng từ biến.
+- Có `choicesRule` cho câu trắc nghiệm, đảm bảo đáp án nhiễu hợp lý và không trùng đáp án đúng.
+- Có `hintTemplate` và `solutionTemplate` render theo đúng biến đã random.
+- Có `constraints` để tránh sinh câu không phù hợp, ví dụ cộng/trừ vượt phạm vi lớp, phép trừ âm, cộng có nhớ khi yêu cầu không nhớ, hoặc bài lời văn mâu thuẫn.
+- Có `validationExamples` gồm vài bộ biến mẫu để kiểm tra đề, đáp án, gợi ý và lời giải.
+
+Khi game load template:
+
+- Game chọn template theo lớp, chủ đề, độ khó và chế độ chơi.
+- Game random biến theo `variables` và lọc bằng `constraints`.
+- Game tính đáp án bằng rule/công thức, sau đó render đề bài, gợi ý, lời giải.
+- Cùng một template không được sinh câu hỏi trùng lặp quá gần trong cùng một lượt chơi 10 câu.
+- Nếu sinh dữ liệu lỗi hoặc không thỏa constraints sau số lần thử giới hạn, game bỏ qua template đó và chọn template khác.
+
+**Yêu Cầu Mới: Các Dạng Bài Tương Tác Bổ Sung**
+
+Game cần bổ sung thêm các dạng bài toán tương tác để tăng sự đa dạng, rèn tư duy thứ tự, suy luận số còn thiếu và nhận biết giờ đúng. Các dạng bài này cần phù hợp học sinh nhỏ tuổi: thao tác rõ ràng, ít chữ, phản hồi tức thì, không gây rối mắt.
+
+### 1. Dạng Toán Sắp Xếp Số
+
+Mục tiêu học tập:
+
+- Rèn kỹ năng nhận biết thứ tự số trong phạm vi 01 đến 99.
+- Giúp học sinh phân biệt “từ bé đến lớn” và “từ lớn đến bé”.
+- Tạo hoạt động kéo thả để tăng tính vận động nhẹ và giảm cảm giác chỉ làm bài tính khô.
+
+Yêu cầu nội dung:
+
+- Mỗi câu sinh từ 7 đến 10 số.
+- Các số nằm trong khoảng `01` đến `99`.
+- Các số trong cùng một câu không nên trùng nhau.
+- Số có thể hiển thị dạng 2 chữ số khi cần, ví dụ `01`, `07`, `25`, `99`, để học sinh quen với số có hàng chục/hàng đơn vị.
+- Có 2 kiểu tiêu đề:
+  - `Hãy sắp xếp các số sau từ bé đến lớn`
+  - `Hãy sắp xếp các số sau từ lớn đến bé`
+- Đáp án đúng là mảng số đã được sắp xếp theo chiều yêu cầu.
+
+Yêu cầu tương tác:
+
+- Bài sắp xếp số phải dùng mô hình 2 vùng:
+  - Phía trên là danh sách các ô trống theo đúng số lượng cần sắp xếp.
+  - Phía dưới là danh sách thẻ số ban đầu để học sinh kéo thả lên các ô trống.
+- Học sinh kéo thả từng thẻ số từ danh sách phía dưới vào các ô trống phía trên theo thứ tự yêu cầu.
+- Không dùng kiểu chỉ kéo thả để đổi vị trí trong một hàng số duy nhất cho phiên bản chính của dạng bài này.
+- Mỗi thẻ số phải đủ lớn để bấm/kéo trên tablet và mobile.
+- Cần hỗ trợ thao tác thay thế nếu thiết bị kéo thả khó dùng, ví dụ bấm chọn một thẻ số rồi bấm vào ô trống đích.
+- Sau khi học sinh bấm trả lời, game kiểm tra toàn bộ thứ tự.
+- Nếu sai, game phải reset toàn bộ các ô trống về trạng thái ban đầu, trả các thẻ số về danh sách phía dưới, hiển thị lại câu hỏi ban đầu và cho phép học sinh chọn lại đáp án.
+- Nếu sai, có thể tô nhẹ vị trí sai trước khi reset hoặc gợi ý “Con hãy tìm số bé nhất/lớn nhất trước”.
+- Thời lượng của bài sắp xếp số phải gấp đôi thời lượng của bài toán thông thường ở cùng độ khó, vì thao tác kéo thả và suy luận thứ tự mất nhiều thời gian hơn.
+
+Yêu cầu template/log:
+
+- Template cần lưu `numbers`, `sortDirection`, `correctOrder`.
+- App log cần ghi lại thứ tự ban đầu, thứ tự học sinh gửi và thứ tự đúng.
+
+### 2. Dạng Toán Tìm Số Trong Ô Trống
+
+Mục tiêu học tập:
+
+- Rèn kỹ năng tìm thành phần chưa biết trong phép cộng/trừ.
+- Tăng khả năng suy luận ngược nhưng vẫn giữ phép tính đơn giản, phù hợp học sinh nhỏ.
+
+Yêu cầu nội dung:
+
+- Các số nằm trong khoảng `01` đến `99`.
+- Tất cả phép cộng/trừ đều không nhớ, không mượn.
+- Kết quả không âm.
+- Mỗi câu chỉ có một ô trống.
+- Ô trống có thể nằm ở nhiều vị trí khác nhau:
+  - `ô trống + 15 = 25`
+  - `20 + ô trống = 25`
+  - `25 - ô trống = 15`
+  - `ô trống - 10 = 15`
+- Đáp án đúng là số cần điền vào ô trống.
+
+Yêu cầu tương tác:
+
+- Học sinh chọn đáp án đúng từ 4 đáp án nằm phía dưới phép tính.
+- Trong 4 đáp án chỉ có 1 đáp án đúng là số cần điền vào ô trống.
+- Ô trống trong phép tính cần rõ, lớn, dễ nhìn trên mobile/tablet và hiển thị ký hiệu `?`.
+- Nếu đáp án hiển thị dạng `05`, hệ thống vẫn hiểu tương đương với giá trị số `5`.
+- Khi sai, gợi ý nên diễn đạt bằng suy luận đơn giản:
+  - Với `ô trống + 15 = 25`: “Muốn tìm số ban đầu, lấy 25 - 15”.
+  - Với `20 + ô trống = 25`: “Muốn tìm số thêm vào, lấy 25 - 20”.
+  - Với `25 - ô trống = 15`: “Muốn tìm số bị bớt đi, lấy 25 - 15”.
+  - Với `ô trống - 10 = 15`: “Muốn tìm số ban đầu, lấy 15 + 10”.
+
+Yêu cầu template/log:
+
+- Template cần lưu `equationPattern`, các biến số, vị trí ô trống, `choices` và `correctAnswer`.
+- App log cần ghi phương trình đã render, 4 đáp án, đáp án đúng và đáp án học sinh chọn.
+
+### 3. Dạng Bài Toán Xem Giờ
+
+Mục tiêu học tập:
+
+- Giúp học sinh nhận biết giờ đúng trên đồng hồ kim.
+- Tập trung vào mức cơ bản: kim phút luôn chỉ số 12, kim giờ chỉ số từ 1 đến 12.
+
+Yêu cầu nội dung:
+
+- Tiêu đề cố định: `Đồng hồ chỉ mấy giờ?`
+- Bên dưới hiển thị một đồng hồ tròn.
+- Kim phút luôn chỉ vào số `12`.
+- Kim giờ chỉ vào một số từ `1` đến `12`.
+- Có 4 đáp án để chọn.
+- Chỉ có 1 đáp án đúng, tương ứng với số giờ kim giờ đang chỉ.
+- Các đáp án nhiễu phải hợp lý, nằm trong khoảng `1 giờ` đến `12 giờ`, không trùng nhau.
+
+Yêu cầu UI/UX:
+
+- Đồng hồ cần rõ ràng, dễ nhìn, không quá nhiều chi tiết trang trí.
+- Số trên đồng hồ đủ lớn, đặc biệt ở mobile/tablet.
+- Kim giờ và kim phút phải khác độ dài/màu để trẻ dễ phân biệt.
+- Khi chọn đúng, có phản hồi vui và có thể làm kim/đồng hồ nhấn nhẹ.
+- Khi chọn sai, gợi ý nên nói: “Kim phút chỉ 12, mình nhìn kim ngắn để biết mấy giờ”.
+
+Yêu cầu template/log:
+
+- Template cần lưu `hour`, `minuteHand = 12`, danh sách `choices`, `correctAnswer`.
+- App log cần ghi giờ được sinh, đáp án đúng và lựa chọn của học sinh.
+
+### 4. Dạng Toán Chọn Ngày Trong Tuần
+
+Mục tiêu học tập:
+
+- Giúp học sinh ghi nhớ thứ tự các ngày trong tuần từ `Thứ 2` đến `Chủ nhật`.
+- Rèn khả năng nhận ra ngày bị thiếu trong một dãy ngày liên tiếp.
+- Làm quen với khái niệm tuần có tính vòng lặp: sau `Chủ nhật` là `Thứ 2`.
+
+Yêu cầu nội dung:
+
+- Tiêu đề cố định: `Chọn ngày trong tuần`.
+- Bên dưới hiển thị một dãy ngày trong tuần có một ô trống.
+- Ví dụ: `Thứ 2, Thứ 3, ô trống, Thứ 5`.
+- Dãy ngày có thể bắt đầu ở bất kỳ ngày nào từ `Thứ 2` đến `Chủ nhật`.
+- Dãy ngày có thể đi qua cuối tuần, ví dụ bắt đầu từ `Thứ 7` rồi tiếp tục `Chủ nhật`, `Thứ 2`, `Thứ 3`, ... hoặc dài tới `Thứ 6` tuần tiếp theo.
+- Mỗi câu có 4 đáp án để chọn.
+- Chỉ có 1 đáp án đúng là ngày phù hợp với vị trí ô trống trong dãy.
+- Các đáp án nhiễu phải là các ngày hợp lệ trong tuần, không trùng nhau.
+
+Yêu cầu UI/UX:
+
+- Dãy ngày nên hiển thị thành các thẻ lớn theo hàng ngang hoặc tự xuống dòng trên mobile.
+- Ô trống cần nổi bật, ví dụ dùng viền nét đứt hoặc màu nền nhẹ.
+- 4 đáp án nằm bên dưới, đủ lớn để trẻ dễ bấm.
+- Khi chọn đúng, ô trống được lấp bằng ngày đúng và có phản hồi vui.
+- Khi chọn sai, gợi ý nên nói: “Con hãy đọc các ngày theo thứ tự. Sau Chủ nhật sẽ quay lại Thứ 2”.
+
+Yêu cầu template/log:
+
+- Template cần lưu `startWeekday`, `sequenceLength`, `blankIndex`, `displaySequence`, `choices`, `correctAnswer`.
+- App log cần ghi dãy ngày đã render, vị trí ô trống, đáp án đúng và lựa chọn của học sinh.
+
+### 5. Dạng Toán Hôm Qua - Hôm Nay - Ngày Mai
+
+Mục tiêu học tập:
+
+- Giúp học sinh hiểu quan hệ thời gian gần: hôm qua, hôm nay, ngày mai.
+- Rèn khả năng đặt đúng thứ tự 3 ngày liên tiếp.
+- Kết hợp nhận biết thứ trong tuần và số ngày trong tháng ở mức đơn giản.
+
+Yêu cầu nội dung:
+
+- Tiêu đề cố định: `Tìm giá trị đúng`.
+- Phía trên có 3 ô đích:
+  - `Hôm qua`
+  - `Hôm nay` hoặc `Ngày nay` tùy wording UI cuối cùng
+  - `Ngày mai`
+- Phía dưới có 3 thẻ đáp án được sắp xếp lẫn lộn.
+- Học sinh kéo 3 thẻ đáp án vào đúng 3 ô tương ứng.
+- Cần hỗ trợ fallback bằng thao tác bấm/chọn nếu kéo thả khó dùng trên mobile.
+
+Biến thể theo thứ trong tuần:
+
+- 3 thẻ đáp án là 3 ngày liên tiếp trong tuần.
+- Các ngày lấy từ chu kỳ `Thứ 2 -> Thứ 3 -> Thứ 4 -> Thứ 5 -> Thứ 6 -> Thứ 7 -> Chủ nhật -> Thứ 2`.
+- Có thể sinh case qua cuối tuần, ví dụ:
+  - `Hôm qua = Chủ nhật`
+  - `Hôm nay = Thứ 2`
+  - `Ngày mai = Thứ 3`
+- Thứ tự hiển thị của 3 thẻ đáp án phải được random, không luôn theo thứ tự đúng.
+
+Biến thể theo ngày trong tháng:
+
+- 3 thẻ đáp án là 3 ngày liên tiếp trong tháng, hiển thị dạng `01` đến `31`.
+- Dữ liệu cần sinh sao cho:
+  - `Hôm qua`, `Hôm nay`, `Ngày mai` là 3 ngày liên tiếp.
+  - Giá trị `Hôm qua` không được vượt quá `29`, để `Ngày mai` không vượt quá `31`.
+  - Ví dụ nếu `Hôm qua = 29` thì `Hôm nay = 30`, `Ngày mai = 31`.
+- Thứ tự hiển thị của 3 thẻ đáp án phải được random.
+- Không sinh case chuyển tháng trong MVP, để tránh gây nhiễu cho học sinh nhỏ.
+
+Yêu cầu tương tác:
+
+- Học sinh kéo từng thẻ vào ô `Hôm qua`, `Hôm nay`, `Ngày mai`.
+- Nếu kéo sai, có thể cho phép đổi vị trí trước khi bấm trả lời.
+- Sau khi bấm trả lời, game kiểm tra cả 3 ô.
+- Nếu đúng, có phản hồi vui và giữ thứ tự đúng.
+- Nếu sai, game phải reset 3 ô đích về trạng thái ban đầu, đưa các thẻ đáp án về danh sách phía dưới, hiển thị lại câu hỏi ban đầu và cho phép học sinh chọn lại.
+- Các ô đích không được hiển thị chữ nền kiểu “Kéo thả đáp án vào đây” hoặc nội dung hướng dẫn dài bên trong ô. Ô đích chỉ nên có nhãn ngắn cố định như `Hôm qua`, `Hôm nay`, `Ngày mai` và vùng trống rõ ràng để thả đáp án.
+- Nếu sai, gợi ý nên nói:
+  - Với thứ trong tuần: “Hôm nay nằm giữa hôm qua và ngày mai”.
+  - Với ngày trong tháng: “Ba số ngày phải tăng thêm 1 từng bước”.
+
+Yêu cầu template/log:
+
+- Template cần lưu `calendarMode` (`weekday` hoặc `monthDate`), `yesterday`, `today`, `tomorrow`, `shuffledChoices`, `correctMapping`.
+- App log cần ghi mode được sinh, 3 giá trị đúng, thứ tự đáp án ban đầu, mapping học sinh kéo thả và kết quả đúng/sai.
+
+### Nguyên Tắc Thiết Kế Chung Cho 5 Dạng Bài
+
+- Mỗi dạng bài phải có `questionType` riêng để UI biết cần render kéo thả, ô trống, đồng hồ, chọn ngày trong tuần hoặc kéo thả ngày hôm qua/hôm nay/ngày mai.
+- Các dạng mới vẫn phải dùng chung hệ thống template JSON, hint, solution và app log.
+- Các câu hỏi cần tương thích với chế độ Luyện tập và Thử thách.
+- Trong chế độ Thử thách, các dạng tương tác không được làm thao tác quá chậm so với thời gian mỗi câu; nếu cần, thời gian có thể cấu hình riêng theo dạng bài.
+- Cần có fallback an toàn: nếu thiết bị không hỗ trợ kéo thả tốt, các dạng kéo thả phải có cách đổi/chọn vị trí bằng bấm/chạm.
+- Cần ưu tiên trải nghiệm trẻ em: thao tác lớn, rõ, ít chữ, feedback thân thiện, không phạt nặng khi thao tác nhầm.
+- Với các dạng bài kéo thả hoặc chọn nhiều bước, khi học sinh trả lời sai, game phải khôi phục màn hình về trạng thái câu hỏi ban đầu và cho phép học sinh chọn/kéo lại đáp án. Không được giữ trạng thái sai khiến trẻ bị kẹt hoặc khó sửa.
+- Với các bài toán có mô tả dài hoặc câu hỏi lời văn dài, font chữ của vùng đề bài phải tự giảm theo độ dài nội dung và kích thước màn hình để không tràn khung, không che đáp án, vẫn đủ rõ cho học sinh lớp 1-2 đọc.
+- Các đáp án, thẻ số, thẻ ngày và ô đích cần có hiệu ứng hover/focus rõ ràng trên desktop: đổi màu viền, nâng nhẹ hoặc đổi nền rất nhẹ. Màu hover/focus phải dùng tone chủ đạo của game như xanh lá, xanh trời, vàng kem; tránh màu quá gắt hoặc gây cảm giác báo lỗi.
+- Trạng thái hover/focus không được làm layout nhảy, không làm thay đổi kích thước nút/thẻ, và phải có trạng thái tương đương cho keyboard focus để hỗ trợ truy cập.
+
+**Yêu Cầu Log Nội Dung Câu Hỏi Sinh Random**
+
+Game cần ghi log mỗi lần người dùng chơi để có thể kiểm tra lại nội dung câu hỏi được sinh random và cách game xử lý đáp án.
+
+Log cần ghi tối thiểu:
+
+- Thời điểm sinh câu hỏi.
+- `sessionId` hoặc mã lượt chơi.
+- Tên/lớp người chơi nếu có trong profile cục bộ.
+- Chế độ chơi, chủ đề, độ khó.
+- `templateId` và `sourceSkillId` nếu câu hỏi sinh từ template.
+- Bộ biến random đã dùng.
+- Nội dung đề bài sau khi render.
+- Danh sách lựa chọn nếu là câu trắc nghiệm.
+- Đáp án đúng.
+- Gợi ý và lời giải được render.
+- Câu trả lời của người chơi.
+- Kết quả đúng/sai, số lần thử, thời gian trả lời, điểm nhận được.
+- Trạng thái đặc biệt: hết giờ, có hiện gợi ý, template bị bỏ qua do lỗi, lỗi validate nếu có.
+
+Yêu cầu hiển thị và an toàn:
+
+- Log không được hiển thị đáp án đúng trên màn hình chơi của học sinh.
+- Log phục vụ review/QA, có thể xem qua chế độ debug hoặc export thành file JSON/JSONL từ app.
+- Vì MVP là web app không backend, app không tự ghi thẳng vào filesystem nếu trình duyệt không cho phép; cần có cơ chế app log cục bộ và nút export/download file log để người phát triển/phụ huynh kiểm tra.
+- Nội dung log phải đủ dữ liệu để tái hiện câu hỏi đã sinh và verify generator có tạo đề, đáp án, gợi ý, lời giải hợp lý hay không.
+
+Mục tiêu review trước khi tạo task:
+
+- Chốt phạm vi template JSON cho MVP.
+- Chốt danh sách dạng bài ưu tiên chuyển từ `skill-generate-math.md`.
+- Chốt schema JSON đủ rõ để sau đó tạo task implement generator, validator và bộ template mẫu.
+
+Requirement này đã đủ rõ để chuyển sang bước tiếp theo: thiết kế wireframe, chia task dev, hoặc bắt đầu scaffold project React.
