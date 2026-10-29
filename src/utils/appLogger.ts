@@ -81,6 +81,7 @@ export function logQuestionAnswered(
     timeSpentSeconds: number;
     scoreDelta: number;
     hintShown: boolean;
+    retried?: boolean;
     userInteractionState?: unknown;
     correctInteractionState?: unknown;
   }
@@ -99,13 +100,19 @@ export function logQuestionAnswered(
     timeSpentSeconds: details.timeSpentSeconds,
     scoreDelta: details.scoreDelta,
     hintShown: details.hintShown,
+    retried: details.retried,
     interactionPayload: question.interactionPayload,
     userInteractionState: details.userInteractionState,
     correctInteractionState: details.correctInteractionState,
   });
 }
 
-export function logQuestionTimeout(context: BaseLogContext, question: Question, timeLimitSeconds: number) {
+export function logQuestionTimeout(
+  context: BaseLogContext,
+  question: Question,
+  timeLimitSeconds: number,
+  details: { attemptCount?: number; hintShown?: boolean } = {}
+) {
   appendQuestionLog({
     ...context,
     eventType: 'question_timeout',
@@ -114,8 +121,9 @@ export function logQuestionTimeout(context: BaseLogContext, question: Question, 
     sourceSkillId: question.sourceSkillId,
     prompt: question.text,
     correctAnswer: question.correctAnswer,
+    attemptCount: details.attemptCount,
     timeSpentSeconds: timeLimitSeconds,
-    hintShown: false,
+    hintShown: details.hintShown ?? false,
     interactionPayload: question.interactionPayload,
     correctInteractionState: question.interactionPayload,
   });

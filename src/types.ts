@@ -177,6 +177,10 @@ export interface SessionQuestionResult {
   hintShown: boolean;
   userInteractionState?: unknown;
   correctInteractionState?: unknown;
+  /** Câu này đã phải trả lời lại sau lần sai đầu (chỉ Luyện tập). */
+  retried?: boolean;
+  /** Nội dung gợi ý đã hiển thị ở câu này, nếu có. */
+  hintText?: string;
 }
 
 export interface PlaySessionRecord {
@@ -247,5 +251,6 @@ export interface QuestionPlayLog {
   timeSpentSeconds?: number;
   scoreDelta?: number;
   hintShown?: boolean;
+  retried?: boolean;
   errorMessage?: string;
 }

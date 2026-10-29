@@ -1,4 +1,21 @@
+import type { Mode } from '../types';
+
+export interface AttemptConfig {
+  maxAttempts: number;
+  hintOnFirstWrong: boolean;
+}
+
 export const gameConfig = {
+  attempts: {
+    practice: {
+      maxAttempts: 2,
+      hintOnFirstWrong: true,
+    },
+    challenge: {
+      maxAttempts: 1,
+      hintOnFirstWrong: false,
+    },
+  },
   unlockRequirements: {
     mediumFromEasyChallenges: 0,
     hardFromMediumChallenges: 3,
@@ -30,3 +47,30 @@ export const gameConfig = {
     enabledForGrades: [1],
   },
 } as const;
+
+const fallbackAttempts: Record<Mode, AttemptConfig> = {
+  practice: { maxAttempts: 2, hintOnFirstWrong: true },
+  challenge: { maxAttempts: 1, hintOnFirstWrong: false },
+};
+
+/**
+ * Trả về cấu hình số lượt trả lời cho từng chế độ.
+ * Nếu config bị sửa sai (maxAttempts < 1 hoặc > 3), dùng giá trị mặc định an toàn.
+ */
+export function getAttemptConfig(mode: Mode): AttemptConfig {
+  const config: AttemptConfig = gameConfig.attempts[mode];
+  if (
+    !config ||
+    !Number.isInteger(config.maxAttempts) ||
+    config.maxAttempts < 1 ||
+    config.maxAttempts > 3
+  ) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        `[gameConfig] attempts.${mode}.maxAttempts không hợp lệ, dùng mặc định ${fallbackAttempts[mode].maxAttempts}.`
+      );
+    }
+    return fallbackAttempts[mode];
+  }
+  return config;
+}

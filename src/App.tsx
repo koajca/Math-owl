@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { generateQuestionSession } from './data/questions';
 import {
+  clearQuestionLogs,
   createSessionId,
   exportQuestionLogs,
   getQuestionLogs,
@@ -9,9 +10,10 @@ import {
   logQuestionTimeout,
   logTemplateIssue,
 } from './utils/appLogger';
-import { gameConfig } from './game/gameConfig';
+import { gameConfig, getAttemptConfig } from './game/gameConfig';
 import { defaultState, loadAppState, saveAppState } from './utils/storage';
 import {
+  clearSessionRecords,
   exportSessionRecordsAsJson,
   getSessionRecords,
   saveSessionRecord,
@@ -203,7 +205,10 @@ function App() {
   const [consecutiveMisses, setConsecutiveMisses] = useState(0);
   const [feedback, setFeedback] = useState('');
   const [showHint, setShowHint] = useState(false);
-  const [pendingHint, setPendingHint] = useState(false);
+  const [wrongChoices, setWrongChoices] = useState<string[]>([]);
+  const [sortResetLock, setSortResetLock] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [clearDataOnLogout, setClearDataOnLogout] = useState(false);
   const [sessionMessage, setSessionMessage] = useState('');
   const [sessionReward, setSessionReward] = useState('');
   const [newBadges, setNewBadges] = useState<string[]>([]);
@@ -218,9 +223,15 @@ function App() {
   const dragValueRef = useRef<string>('');
   const dragSortRef = useRef<SortDragSource | null>(null);
   const timeoutIdRef = useRef<number | null>(null);
+  const sortResetTimeoutRef = useRef<number | null>(null);
   const sessionRecordRef = useRef<PlaySessionRecord | null>(null);
   const sessionResultsRef = useRef<SessionQuestionResult[]>([]);
   const sessionScoreRef = useRef(0);
+  const attemptCountRef = useRef(0);
+  const answerLockRef = useRef(false);
+  const hintRef = useRef<HTMLDivElement | null>(null);
+  const questionRef = useRef<HTMLDivElement | null>(null);
+  const cancelLogoutRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     const saved = loadAppState();
@@ -295,10 +306,20 @@ function App() {
 
   useEffect(() => {
     if (page !== 'quiz' || !currentQuestion) return;
+
+    if (sortResetTimeoutRef.current !== null) {
+      window.clearTimeout(sortResetTimeoutRef.current);
+      sortResetTimeoutRef.current = null;
+    }
+
+    attemptCountRef.current = 0;
+    answerLockRef.current = false;
     setTimer(currentQuestion.timeLimit);
     setAnswerValue('');
     setAttemptCount(0);
-    setShowHint(pendingHint);
+    setShowHint(false);
+    setWrongChoices([]);
+    setSortResetLock(false);
     setFeedback('');
     setHasAnswered(false);
     setSelectedSortIndex(null);
@@ -306,6 +327,8 @@ function App() {
     setWeekdayAnswer('');
     setSelectedRelativeValue('');
     setRelativeMapping({});
+    dragValueRef.current = '';
+    dragSortRef.current = null;
     if (currentQuestion.interactionPayload?.kind === 'sort-numbers') {
       setSortPool(currentQuestion.interactionPayload.initialPool);
       setSortSlots(currentQuestion.interactionPayload.targetSlots);
@@ -313,9 +336,51 @@ function App() {
       setSortPool([]);
       setSortSlots([]);
     }
-    setOwlMood(pendingHint ? 'thinking' : 'idle');
-    setOwlMessage(pendingHint ? currentQuestion.hint : 'Con chọn đáp án đúng nhé.');
-  }, [page, currentIndex, currentQuestion, pendingHint]);
+    setOwlMood('idle');
+    setOwlMessage('Con chọn đáp án đúng nhé.');
+  }, [page, currentIndex, currentQuestion]);
+
+  // Đưa người chơi về đầu trang khi đổi màn hoặc sang câu mới.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [page, currentIndex]);
+
+  // Sau khi chuyển câu: bỏ focus khỏi đáp án/ô nhập cũ và đưa focus về khung đề.
+  // Không chạy khi modal Đăng xuất đang mở để modal giữ focus.
+  useEffect(() => {
+    if (page !== 'quiz' || showLogoutConfirm) return;
+
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body) {
+      active.blur();
+    }
+
+    questionRef.current?.focus({ preventScroll: true });
+  }, [page, currentIndex, showLogoutConfirm]);
+
+  // Khi gợi ý xuất hiện, cuộn vừa đủ để thẻ gợi ý nằm trong khung nhìn.
+  useEffect(() => {
+    if (!showHint) return;
+    hintRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [showHint]);
+
+  // Modal Đăng xuất: focus nút "Ở lại", đóng bằng Esc, khoá cuộn nền.
+  useEffect(() => {
+    if (!showLogoutConfirm) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    cancelLogoutRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowLogoutConfirm(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showLogoutConfirm]);
 
   useEffect(() => {
     if (page !== 'quiz' || hasAnswered || !currentQuestion) return;
@@ -406,6 +471,10 @@ function App() {
       window.clearTimeout(timeoutIdRef.current);
       timeoutIdRef.current = null;
     }
+    if (sortResetTimeoutRef.current !== null) {
+      window.clearTimeout(sortResetTimeoutRef.current);
+      sortResetTimeoutRef.current = null;
+    }
   };
 
   const updateProfile = () => {
@@ -435,6 +504,80 @@ function App() {
       ...current,
       profile: current.profile ? { ...current.profile, soundEnabled: next } : current.profile,
     }));
+  };
+
+  const requestLogout = () => {
+    setClearDataOnLogout(false);
+    setShowLogoutConfirm(true);
+  };
+
+  const cancelLogout = () => {
+    setShowLogoutConfirm(false);
+  };
+
+  const confirmLogout = () => {
+    cleanupPendingTimeout();
+    correctAudioRef.current?.pause();
+    wrongAudioRef.current?.pause();
+    answerLockRef.current = true;
+    attemptCountRef.current = 0;
+    dragValueRef.current = '';
+    dragSortRef.current = null;
+
+    // State phiên chơi trong bộ nhớ
+    sessionRecordRef.current = null;
+    sessionResultsRef.current = [];
+    sessionScoreRef.current = 0;
+    setSessionQuestions([]);
+    setSessionId('');
+    setCurrentIndex(0);
+    setTimer(0);
+    setAnswerValue('');
+    setFeedback('');
+    setShowHint(false);
+    setHasAnswered(false);
+    setAttemptCount(0);
+    setConsecutiveMisses(0);
+    setScore(0);
+    setCorrectCount(0);
+    setWrongChoices([]);
+    setSortResetLock(false);
+    setSortPool([]);
+    setSortSlots([]);
+    setSortWrongSlots([]);
+    setSelectedSortIndex(null);
+    setWeekdayAnswer('');
+    setRelativeMapping({});
+    setSelectedRelativeValue('');
+    setErrorMessage('');
+    setSessionMessage('');
+    setSessionReward('');
+    setNewBadges([]);
+    setOwlMood('idle');
+    setOwlMessage('Mình cùng luyện toán nhé!');
+
+    // Form đăng nhập
+    setPlayerName('');
+    setPlayerGrade(1);
+    setPlayerAvatar('owl-blue');
+    setPlayerSoundEnabled(true);
+    setMode('practice');
+    setTopic('addition');
+    setDifficulty('easy');
+    setAnswerMode('auto');
+
+    if (clearDataOnLogout) {
+      clearQuestionLogs();
+      clearSessionRecords();
+      setLogCount(0);
+      setSessionCount(0);
+      setState({ progress: defaultState.progress });
+    } else {
+      setState((current) => ({ ...current, profile: undefined }));
+    }
+
+    setShowLogoutConfirm(false);
+    setPage('setup');
   };
 
   const chooseTopic = (selected: Topic) => {
@@ -544,7 +687,11 @@ function App() {
     setScore(0);
     setCorrectCount(0);
     setConsecutiveMisses(0);
-    setPendingHint(false);
+    setShowHint(false);
+    setWrongChoices([]);
+    setSortResetLock(false);
+    attemptCountRef.current = 0;
+    answerLockRef.current = false;
     setSessionMessage('');
     setSessionReward('');
     setNewBadges([]);
@@ -640,16 +787,13 @@ function App() {
     setCurrentIndex(nextIndex);
   };
 
-  const handleMiss = (message: string, finishQuestion: boolean) => {
+  const handleFinalMiss = (message: string, mood: OwlMood = 'thinking') => {
     setFeedback(message);
-    setOwlMood(finishQuestion ? 'thinking' : 'timeout');
-
-    if (!finishQuestion) return 0;
+    setOwlMood(mood);
+    setOwlMessage('Con xem lại rồi mình sang câu tiếp theo nhé.');
 
     const nextMisses = consecutiveMisses + 1;
     setConsecutiveMisses(nextMisses);
-    if (nextMisses >= 2) setPendingHint(true);
-    setOwlMessage('Câu sau cú có gợi ý nhỏ cho con.');
 
     if (nextMisses >= 3) {
       applyScoreDelta(-5);
@@ -659,12 +803,18 @@ function App() {
   };
 
   const handleTimeout = () => {
-    if (!currentQuestion || hasAnswered) return;
+    if (!currentQuestion || hasAnswered || answerLockRef.current) return;
+    answerLockRef.current = true;
     setHasAnswered(true);
-    logQuestionTimeout(buildLogContext(), currentQuestion, currentQuestion.timeLimit);
+    const attempt = attemptCountRef.current;
+    const hintWasShown = showHint;
+    logQuestionTimeout(buildLogContext(), currentQuestion, currentQuestion.timeLimit, {
+      attemptCount: attempt + 1,
+      hintShown: hintWasShown,
+    });
     setLogCount(getQuestionLogs().length);
     playAudio('timeout');
-    const missPenalty = handleMiss('Hết giờ! Câu này được tính sai.', true);
+    const missPenalty = handleFinalMiss('Hết giờ! Câu này được tính sai.', 'timeout');
     recordQuestionResult({
       index: currentIndex + 1,
       questionId: currentQuestion.id,
@@ -678,10 +828,12 @@ function App() {
       correctAnswer: currentQuestion.correctAnswer,
       isCorrect: false,
       timedOut: true,
-      attemptCount: attemptCount + 1,
+      attemptCount: attempt + 1,
       timeSpentSeconds: currentQuestion.timeLimit,
       scoreDelta: missPenalty,
-      hintShown: showHint,
+      hintShown: hintWasShown,
+      retried: attempt > 0,
+      hintText: hintWasShown ? currentQuestion.hint : undefined,
       correctInteractionState: getCorrectInteractionState(currentQuestion),
     });
     timeoutIdRef.current = window.setTimeout(goToNextQuestion, 1450);
@@ -689,15 +841,22 @@ function App() {
 
   const resetInteractiveAttempt = (question: Question) => {
     if (question.interactionPayload?.kind === 'sort-numbers') {
-      const wrongSlots = question.interactionPayload.correctOrder
+      const payload = question.interactionPayload;
+      const wrongSlots = payload.correctOrder
         .map((value, index) => (sortSlots[index] !== value ? index : -1))
         .filter((index) => index >= 0);
       setSortWrongSlots(wrongSlots);
-      window.setTimeout(() => {
-        setSortPool(question.interactionPayload?.kind === 'sort-numbers' ? question.interactionPayload.initialPool : []);
-        setSortSlots(question.interactionPayload?.kind === 'sort-numbers' ? question.interactionPayload.targetSlots : []);
+      setSortResetLock(true);
+      if (sortResetTimeoutRef.current !== null) {
+        window.clearTimeout(sortResetTimeoutRef.current);
+      }
+      sortResetTimeoutRef.current = window.setTimeout(() => {
+        setSortPool(payload.initialPool);
+        setSortSlots(payload.targetSlots);
         setSelectedSortIndex(null);
         setSortWrongSlots([]);
+        setSortResetLock(false);
+        sortResetTimeoutRef.current = null;
       }, 650);
     }
 
@@ -707,6 +866,18 @@ function App() {
       dragValueRef.current = '';
     }
   };
+
+  const resetAnswerForRetry = (question: Question) => {
+    if (question.questionType === 'sort-numbers' || question.questionType === 'relative-date') {
+      resetInteractiveAttempt(question);
+      return;
+    }
+    if (question.questionType === 'input' || question.questionType === 'fill-number') {
+      setAnswerValue('');
+    }
+  };
+
+  const isWrongChoice = (choice: string) => wrongChoices.includes(choice);
 
   const getCorrectInteractionState = (question: Question) => {
     const payload = question.interactionPayload;
@@ -754,7 +925,8 @@ function App() {
   };
 
   const evaluateAnswer = (raw: string) => {
-    if (!currentQuestion || hasAnswered) return;
+    if (!currentQuestion || hasAnswered || answerLockRef.current) return;
+
     const answer = raw.trim();
     const needsRawAnswer = !['sort-numbers', 'relative-date'].includes(currentQuestion.questionType);
     if (needsRawAnswer && !answer) {
@@ -762,21 +934,28 @@ function App() {
       return;
     }
 
+    answerLockRef.current = true;
+    const attempt = attemptCountRef.current;
+    const modeConfig = getAttemptConfig(mode);
+    const timeSpentSeconds = currentQuestion.timeLimit - timer;
     const isCorrect = isAnswerCorrect(currentQuestion, answer);
     const userInteractionState = getUserInteractionState(currentQuestion, answer);
     const correctInteractionState = getCorrectInteractionState(currentQuestion);
     const submittedAnswer = needsRawAnswer ? answer : JSON.stringify(userInteractionState);
+    const retried = attempt > 0;
+    const hintText = showHint ? currentQuestion.hint : undefined;
 
     if (isCorrect) {
+      const earned = attempt === 0 ? 10 : 5;
       setHasAnswered(true);
-      const earned = attemptCount === 0 ? 10 : 5;
       logQuestionAnswered(buildLogContext(), currentQuestion, {
         userAnswer: submittedAnswer,
         isCorrect: true,
-        attemptCount: attemptCount + 1,
-        timeSpentSeconds: currentQuestion.timeLimit - timer,
+        attemptCount: attempt + 1,
+        timeSpentSeconds,
         scoreDelta: earned,
         hintShown: showHint,
+        retried,
         userInteractionState,
         correctInteractionState,
       });
@@ -784,8 +963,7 @@ function App() {
       applyScoreDelta(earned);
       setCorrectCount((value) => value + 1);
       setConsecutiveMisses(0);
-      setPendingHint(false);
-      setFeedback(attemptCount === 0 ? `Chính xác! +${earned} điểm.` : `Đúng rồi! +${earned} điểm.`);
+      setFeedback(attempt === 0 ? `Chính xác! +${earned} điểm.` : `Đúng rồi! +${earned} điểm.`);
       setOwlMood('happy');
       setOwlMessage('Giỏi lắm!');
       playAudio('correct');
@@ -803,10 +981,12 @@ function App() {
         userAnswer: submittedAnswer,
         isCorrect: true,
         timedOut: false,
-        attemptCount: attemptCount + 1,
-        timeSpentSeconds: currentQuestion.timeLimit - timer,
+        attemptCount: attempt + 1,
+        timeSpentSeconds,
         scoreDelta: earned,
         hintShown: showHint,
+        retried,
+        hintText,
         userInteractionState,
         correctInteractionState,
       });
@@ -815,29 +995,69 @@ function App() {
     }
 
     playAudio('wrong');
+    const nextAttempt = attempt + 1;
+
+    if (nextAttempt < modeConfig.maxAttempts) {
+      // Còn lượt: ghi log lượt sai (không trừ điểm), bật gợi ý nếu được cấu hình,
+      // reset UI theo dạng câu và giữ nguyên câu hỏi + timer.
+      logQuestionAnswered(buildLogContext(), currentQuestion, {
+        userAnswer: submittedAnswer,
+        isCorrect: false,
+        attemptCount: nextAttempt,
+        timeSpentSeconds,
+        scoreDelta: 0,
+        hintShown: false,
+        retried,
+        userInteractionState,
+        correctInteractionState,
+      });
+      setLogCount(getQuestionLogs().length);
+
+      attemptCountRef.current = nextAttempt;
+      setAttemptCount(nextAttempt);
+      setFeedback('Chưa đúng, con thử lại một lần nữa nhé.');
+      setOwlMood('thinking');
+      if (modeConfig.hintOnFirstWrong) {
+        setShowHint(true);
+        setOwlMessage('Cú có gợi ý ở khung màu vàng nhé!');
+      } else {
+        setShowHint(false);
+        setOwlMessage('Con nhìn kỹ rồi thử lại nhé.');
+      }
+
+      const choiceBased = [
+        'multiple-choice',
+        'missing-equation',
+        'clock-hour',
+        'weekday-blank',
+        'compare',
+      ].includes(currentQuestion.questionType);
+      if (choiceBased) {
+        setWrongChoices((current) =>
+          current.includes(answer) ? current : [...current, answer]
+        );
+      }
+
+      resetAnswerForRetry(currentQuestion);
+      answerLockRef.current = false;
+      return;
+    }
+
+    // Hết lượt: câu kết thúc, chỉ tăng chuỗi sai một lần và chuyển câu.
+    const missPenalty = handleFinalMiss('Chưa đúng. Mình chuyển sang câu tiếp theo nhé.');
     logQuestionAnswered(buildLogContext(), currentQuestion, {
       userAnswer: submittedAnswer,
       isCorrect: false,
-      attemptCount: attemptCount + 1,
-      timeSpentSeconds: currentQuestion.timeLimit - timer,
-      scoreDelta: attemptCount === 0 && currentQuestion.questionType !== 'multiple-choice' ? 0 : consecutiveMisses >= 2 ? -5 : 0,
+      attemptCount: nextAttempt,
+      timeSpentSeconds,
+      scoreDelta: missPenalty,
       hintShown: showHint,
+      retried,
       userInteractionState,
       correctInteractionState,
     });
     setLogCount(getQuestionLogs().length);
-    if (attemptCount === 0 && currentQuestion.questionType !== 'multiple-choice') {
-      resetInteractiveAttempt(currentQuestion);
-      setAttemptCount(1);
-      setShowHint(consecutiveMisses >= 1);
-      setFeedback('Chưa đúng, con thử lại một lần nữa nhé.');
-      setOwlMood('thinking');
-      setOwlMessage(consecutiveMisses >= 1 ? currentQuestion.hint : 'Nhìn kỹ từng hàng số nhé.');
-      return;
-    }
-
     setHasAnswered(true);
-    const missPenalty = handleMiss('Chưa đúng. Mình chuyển sang câu tiếp theo nhé.', true);
     recordQuestionResult({
       index: currentIndex + 1,
       questionId: currentQuestion.id,
@@ -852,10 +1072,12 @@ function App() {
       userAnswer: submittedAnswer,
       isCorrect: false,
       timedOut: false,
-      attemptCount: attemptCount + 1,
-      timeSpentSeconds: currentQuestion.timeLimit - timer,
+      attemptCount: nextAttempt,
+      timeSpentSeconds,
       scoreDelta: missPenalty,
       hintShown: showHint,
+      retried,
+      hintText,
       userInteractionState,
       correctInteractionState,
     });
@@ -866,11 +1088,17 @@ function App() {
     const playedSessions = state.progress.playedSessions ?? 0;
     const completedChallenges = state.progress.completedChallenges;
     return (
-      <div className="top-bar">
-        <button className="icon-button" type="button" onClick={() => setPage('home')} title="Trang chủ">
+      <div className={`top-bar ${page === 'quiz' ? 'top-bar-static' : ''}`}>
+        <button
+          className="icon-button top-home"
+          type="button"
+          onClick={() => setPage('home')}
+          title="Trang chủ"
+          aria-label="Trang chủ"
+        >
           ⌂
         </button>
-        <div>
+        <div className="top-identity">
           <strong>{state.profile?.name ?? (playerName || 'Bạn nhỏ')}</strong>
           <span>Lớp {state.profile?.grade ?? playerGrade}</span>
         </div>
@@ -878,13 +1106,37 @@ function App() {
           <strong>⭐ {state.progress.totalScore}</strong>
           <span>Tổng điểm</span>
         </div>
-        <div className="top-challenge" title="Số thử thách và số lượt đã chơi">
-          <strong>🏆 {completedChallenges} thử thách</strong>
+        <div
+          className="top-challenge"
+          title={`${completedChallenges} thử thách, ${playedSessions} lượt đã chơi`}
+        >
+          <strong>
+            🏆 {completedChallenges}
+            <span className="challenge-label"> thử thách</span>
+          </strong>
           <span>🎮 {playedSessions} lượt đã chơi</span>
         </div>
-        <button className="icon-button" type="button" onClick={toggleSound} title="Âm thanh">
-          {state.profile?.soundEnabled ?? playerSoundEnabled ? '🔊' : '🔇'}
-        </button>
+        <div className="top-actions">
+          <button
+            className="icon-button"
+            type="button"
+            onClick={toggleSound}
+            title="Âm thanh"
+            aria-label="Bật/tắt âm thanh"
+          >
+            {state.profile?.soundEnabled ?? playerSoundEnabled ? '🔊' : '🔇'}
+          </button>
+          <button
+            className="logout-button"
+            type="button"
+            onClick={requestLogout}
+            title="Đăng xuất"
+            aria-label="Đăng xuất"
+          >
+            <span aria-hidden="true">🚪</span>
+            <span className="logout-label">Đăng xuất</span>
+          </button>
+        </div>
       </div>
     );
   };
@@ -1189,6 +1441,7 @@ function App() {
   };
 
   const submitSortAnswer = () => {
+    if (sortResetLock) return;
     if (sortSlots.some((value) => !value)) {
       setFeedback('Con hãy kéo đủ các số vào ô trống trước nhé.');
       return;
@@ -1237,7 +1490,12 @@ function App() {
           </button>
         ))}
       </div>
-      <button className="primary-button wide" type="button" onClick={submitSortAnswer}>
+      <button
+        className="primary-button wide"
+        type="button"
+        disabled={sortResetLock}
+        onClick={submitSortAnswer}
+      >
         Trả lời
       </button>
     </div>
@@ -1258,7 +1516,13 @@ function App() {
         </div>
         <div className="choice-grid">
           {currentQuestion.choices?.map((choice) => (
-            <button key={choice} className="answer-button compact-answer" type="button" onClick={() => evaluateAnswer(choice)}>
+            <button
+              key={choice}
+              className={`answer-button compact-answer ${isWrongChoice(choice) ? 'wrong-choice' : ''}`}
+              type="button"
+              disabled={isWrongChoice(choice)}
+              onClick={() => evaluateAnswer(choice)}
+            >
               {choice}
             </button>
           ))}
@@ -1293,7 +1557,13 @@ function App() {
         </svg>
         <div className="choice-grid">
           {currentQuestion?.choices?.map((choice) => (
-            <button key={choice} className="answer-button compact-answer" type="button" onClick={() => evaluateAnswer(choice)}>
+            <button
+              key={choice}
+              className={`answer-button compact-answer ${isWrongChoice(choice) ? 'wrong-choice' : ''}`}
+              type="button"
+              disabled={isWrongChoice(choice)}
+              onClick={() => evaluateAnswer(choice)}
+            >
               {choice}
             </button>
           ))}
@@ -1319,8 +1589,9 @@ function App() {
           {currentQuestion?.choices?.map((choice) => (
             <button
               key={choice}
-              className="answer-button compact-answer"
+              className={`answer-button compact-answer ${isWrongChoice(choice) ? 'wrong-choice' : ''}`}
               type="button"
+              disabled={isWrongChoice(choice)}
               onClick={() => {
                 if (choice === currentQuestion.correctAnswer) setWeekdayAnswer(choice);
                 evaluateAnswer(choice);
@@ -1418,7 +1689,13 @@ function App() {
       return (
         <div className="choice-grid">
           {currentQuestion.choices?.map((choice) => (
-            <button key={choice} className="answer-button" type="button" onClick={() => evaluateAnswer(choice)}>
+            <button
+              key={choice}
+              className={`answer-button ${isWrongChoice(choice) ? 'wrong-choice' : ''}`}
+              type="button"
+              disabled={isWrongChoice(choice)}
+              onClick={() => evaluateAnswer(choice)}
+            >
               {choice}
             </button>
           ))}
@@ -1430,7 +1707,13 @@ function App() {
       return (
         <div className="choice-grid signs">
           {['>', '<', '='].map((sign) => (
-            <button key={sign} className="answer-button sign" type="button" onClick={() => evaluateAnswer(sign)}>
+            <button
+              key={sign}
+              className={`answer-button sign ${isWrongChoice(sign) ? 'wrong-choice' : ''}`}
+              type="button"
+              disabled={isWrongChoice(sign)}
+              onClick={() => evaluateAnswer(sign)}
+            >
               {sign}
             </button>
           ))}
@@ -1485,24 +1768,36 @@ function App() {
         {renderTopBar()}
         <section className="quiz-layout">
           <div className="quiz-panel">
-            <div className="quiz-meta">
-              <span>Câu {currentIndex + 1}/10</span>
-              <span>⭐ {score}</span>
-              <span className={timer <= 5 ? 'danger-text' : ''}>{timer}s</span>
+            <div className="quiz-status">
+              <div className="quiz-meta">
+                <span>Câu {currentIndex + 1}/10</span>
+                <span>⭐ {score}</span>
+                <span className={timer <= 5 ? 'danger-text' : ''}>{timer}s</span>
+              </div>
+              <div className="progress-track">
+                <div className="progress-fill" style={{ width: `${progress}%` }} />
+              </div>
+              <div className="timer-track">
+                <div className={timer <= 5 ? 'timer-fill danger-fill' : 'timer-fill'} style={{ width: `${timeProgress}%` }} />
+              </div>
             </div>
             <div className="challenge-progress">
               <strong>Tiến độ mở khóa</strong>
               <span>{currentDifficultyProgressLabel}</span>
             </div>
-            <div className="progress-track">
-              <div className="progress-fill" style={{ width: `${progress}%` }} />
+            <div className={`question-box ${questionLengthClass}`} ref={questionRef} tabIndex={-1}>
+              {questionPrompt}
             </div>
-            <div className="timer-track">
-              <div className={timer <= 5 ? 'timer-fill danger-fill' : 'timer-fill'} style={{ width: `${timeProgress}%` }} />
-            </div>
-            <div className={`question-box ${questionLengthClass}`}>{questionPrompt}</div>
+            {showHint && mode === 'practice' && currentQuestion && (
+              <div className="hint-card" role="status" aria-live="polite" ref={hintRef}>
+                <span className="hint-icon" aria-hidden="true">💡</span>
+                <p>
+                  <strong>Gợi ý:</strong>{' '}
+                  {currentQuestion.hint || 'Con đọc lại đề và thử từng bước nhé.'}
+                </p>
+              </div>
+            )}
             {renderAnswerInput()}
-            {showHint && <p className="feedback">Gợi ý: {currentQuestion.hint}</p>}
             {feedback && <p className="feedback">{feedback}</p>}
           </div>
           <OwlMascot mood={owlMood} message={owlMessage} />
@@ -1562,6 +1857,49 @@ function App() {
     );
   };
 
+  const renderLogoutModal = () => (
+    <div className="modal-backdrop" role="presentation" onClick={cancelLogout}>
+      <div
+        className="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="logout-title"
+        aria-describedby="logout-desc"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="modal-icon" aria-hidden="true">🚪</div>
+        <h3 id="logout-title">Đăng xuất?</h3>
+        <p id="logout-desc">
+          Con có chắc muốn đăng xuất không?
+          {page === 'quiz' && ' Lượt chơi đang dở sẽ không được tính là hoàn thành.'}
+        </p>
+
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={clearDataOnLogout}
+            onChange={(event) => setClearDataOnLogout(event.target.checked)}
+          />
+          Xoá cả tiến độ và lịch sử trên thiết bị
+        </label>
+
+        <div className="modal-actions">
+          <button
+            ref={cancelLogoutRef}
+            className="secondary-button"
+            type="button"
+            onClick={cancelLogout}
+          >
+            Ở lại
+          </button>
+          <button className="primary-button coral" type="button" onClick={confirmLogout}>
+            Đăng xuất
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="app-shell">
       {page === 'setup' && renderSetup()}
@@ -1570,6 +1908,7 @@ function App() {
       {page === 'selection' && renderSelection()}
       {page === 'quiz' && renderQuiz()}
       {page === 'result' && renderResult()}
+      {showLogoutConfirm && renderLogoutModal()}
     </div>
   );
 }
