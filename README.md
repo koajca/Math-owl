@@ -28,14 +28,27 @@ http://127.0.0.1:5173
 - Cấu hình phạm vi cộng trừ có nhớ tại `src/game/gameConfig.ts` (`carry.rangeByDifficulty`), ví dụ `< 20` hoặc `<= 99`.
 - Câu hỏi trắc nghiệm, nhập đáp án, điền số còn thiếu và so sánh (so sánh chỉ dành cho Lớp 1).
 - Mỗi thử thách gồm 10 câu, có timer theo độ khó.
-- Hết giờ tự chuyển sang câu tiếp theo.
-- Sai 2 lần liên tiếp có gợi ý, sai 3 lần liên tiếp trừ điểm.
+- Hết giờ tự chuyển sang câu tiếp theo, tính sai và không cho trả lời lại.
+- `Luyện tập`: được trả lời 2 lần mỗi câu; sai lần đầu hiện thẻ gợi ý 💡 và khoá đáp án sai (nếu là dạng chọn), đúng lần hai được +5 điểm.
+- `Thử thách`: chỉ 1 lần trả lời mỗi câu, không bao giờ hiện gợi ý.
+- Sai 3 câu liên tiếp (đã kết thúc câu) trừ 5 điểm, điểm không âm.
 - Mở khóa theo số thử thách hoàn thành.
 - Tổng điểm, huy hiệu, âm thanh hiệu ứng và mascot cú mèo 2D.
+- Giao diện responsive cho điện thoại, iPad dọc/ngang và desktop; giữ đề + đáp án + timer trong khung nhìn hợp lý, tự cuộn về đầu trang khi sang câu mới.
+- Nút `Đăng xuất` có xác nhận, mặc định giữ tiến độ; có tuỳ chọn xoá toàn bộ tiến độ và lịch sử trên thiết bị.
+- Khi chuyển câu, focus được đưa về khung đề bài để không dính vào đáp án/ô nhập của câu trước.
+
+## Đăng xuất và dữ liệu trên thiết bị
+
+Nút `Đăng xuất` nằm ở cuối thanh trên cùng của các màn đã đăng nhập. Khi xác nhận:
+
+- Quay về màn nhập tên với form trống.
+- Mặc định **giữ** điểm, huy hiệu, tiến độ mở khoá và lịch sử chơi.
+- Nếu tick `Xoá cả tiến độ và lịch sử trên thiết bị`, toàn bộ tiến độ, lịch sử lượt chơi và log câu hỏi sẽ bị xoá.
 
 ## Lưu lịch sử chơi ra file JSON
 
-Mỗi lượt chơi được ghi lại thành một bản ghi `PlaySessionRecord` gồm: người chơi, lớp, chế độ, chủ đề, độ khó, thời gian bắt đầu/kết thúc, tổng điểm, số câu đúng, huy hiệu và chi tiết từng câu (đề bài, đáp án đúng, câu trả lời, đúng/sai, hết giờ, số lần thử, thời gian trả lời, điểm).
+Mỗi lượt chơi được ghi lại thành một bản ghi `PlaySessionRecord` gồm: người chơi, lớp, chế độ, chủ đề, độ khó, thời gian bắt đầu/kết thúc, tổng điểm, số câu đúng, huy hiệu và chi tiết từng câu (đề bài, đáp án đúng, câu trả lời, đúng/sai, hết giờ, số lần thử, thời gian trả lời, điểm, `hintShown`, `retried`, `hintText`).
 
 Có 2 cách để lưu:
 

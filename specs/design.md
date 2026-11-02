@@ -1,5 +1,7 @@
 # Thiết Kế Game "Cú Mèo Toán Học"
 
+> **Cập nhật 29/10/2026:** Đã bổ sung responsive iPad/phone, Đăng xuất, trả lời lại + gợi ý ở Luyện tập, Thử thách 1 lượt không gợi ý, và focus về khung đề khi chuyển câu. Chi tiết kỹ thuật xem `specs/design-update-responsive.md`; checklist thực hiện xem `specs/tasks-update-responsive.md`.
+
 ## 1. Tổng quan
 
 **Tên game:** Cú Mèo Toán Học
@@ -48,17 +50,23 @@
 - Không cần email, mật khẩu hay tài khoản server.
 - Dữ liệu tồn tại cục bộ trên trình duyệt.
 
+### 4.4 Đăng xuất
+- Nút Đăng xuất ở cuối thanh trên cùng của các màn đã đăng nhập.
+- Có modal xác nhận; mặc định giữ tiến độ, có tuỳ chọn xoá toàn bộ dữ liệu trên thiết bị.
+- Sau khi đăng xuất, quay về màn nhập tên và dừng timer/phiên đang chơi.
+
 ## 5. Chế độ chơi
 
 ### 5.1 Luyện tập
 - Dành cho làm quen và ôn bài.
 - Áp lực nhẹ, sai không phạt nặng.
-- Có gợi ý sau 2 lần sai liên tiếp.
+- Có gợi ý ngay sau lần sai đầu của câu hiện tại, cho trả lời lại 1 lần.
 - Có thể hiển thị thời gian, nhưng không gắt.
 - Thích hợp để học sinh lặp lại kiến thức.
 
 ### 5.2 Thử thách
 - Mỗi lượt gồm 10 câu.
+- Mỗi câu chỉ có 1 lượt trả lời, không hiện gợi ý.
 - Có giới hạn thời gian mỗi câu.
 - Có điểm số, phần thưởng và màn kết quả.
 - Kết quả có thể hiện điểm, số câu đúng, huy hiệu.
@@ -131,18 +139,19 @@
   - hiển thị hiệu ứng báo hết giờ nhẹ.
 
 ### 9.2 Gợi ý
-- Sai 2 lần liên tiếp hoặc hết giờ: hiện gợi ý cho câu tiếp theo.
-- Sai 3 lần liên tiếp: trừ điểm.
+- Luyện tập: hiện gợi ý ngay sau lần sai đầu của câu hiện tại, reset mỗi câu.
+- Thử thách: không bao giờ hiện gợi ý.
+- Hết giờ: kết thúc câu, không cho trả lời lại.
+- Sai 3 câu liên tiếp (đã kết thúc): trừ điểm.
 
 ## 10. Hệ thống điểm
 
 ### 10.1 Quy tắc điểm
 - Đúng lần đầu: +10 điểm.
 - Đúng sau 1 lần sai: +5 điểm.
-- Sai lần 1: không trừ điểm.
-- Sai lần 2 liên tiếp: hiện gợi ý.
-- Sai lần 3 liên tiếp: -5 điểm.
-- Hết giờ: tính như sai 1 lần.
+- Sai lần 1: không trừ điểm, hiện gợi ý (Luyện tập).
+- Sai câu thứ 3 liên tiếp (đã kết thúc câu): -5 điểm.
+- Hết giờ: tính như sai 1 lần, không cho trả lời lại.
 - Điểm không âm.
 
 ### 10.2 Thưởng thành tích

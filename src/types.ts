@@ -1,7 +1,12 @@
-export type Grade = 1 | 2;
+export type Grade = 0 | 1 | 2;
 export type Mode = 'practice' | 'challenge';
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type Topic = 'addition' | 'subtraction' | 'carry' | 'comparison' | 'mixed' | 'tower';
+export type Topic = 'add-sub' | 'find-number' | 'carry' | 'comparison' | 'mixed' | 'tower';
+
+/** Chủ đề cũ, chỉ dùng khi đọc dữ liệu đã lưu. */
+export type LegacyTopic = 'addition' | 'subtraction';
+export type HistoricalTopic = Topic | LegacyTopic;
+export type RangeTopic = 'add-sub' | 'find-number' | 'comparison';
 export type AnswerMode = 'auto' | 'choice' | 'input';
 export type CarryMode = 'addition-carry' | 'subtraction-borrow';
 export type QuestionType =
@@ -146,7 +151,7 @@ export interface ProgressState {
   completedChallenges: number;
   playedSessions: number;
   completedByDifficulty: Record<Difficulty, number>;
-  completedByTopic: Partial<Record<Topic, number>>;
+  completedByTopic: Partial<Record<HistoricalTopic, number>>;
   totalScore: number;
   badges: string[];
   lastPlayedAt?: string;
@@ -189,7 +194,7 @@ export interface PlaySessionRecord {
   grade: Grade;
   avatar?: AvatarOption;
   mode: Mode;
-  topic: Topic;
+  topic: HistoricalTopic;
   difficulty: Difficulty;
   answerMode: AnswerMode;
   startedAt: string;
@@ -231,8 +236,9 @@ export interface QuestionPlayLog {
   playerName?: string;
   grade: Grade;
   mode: Mode;
-  topic: Topic;
+  topic: HistoricalTopic;
   difficulty: Difficulty;
+  questionGrade?: Grade;
   templateId?: string;
   sourceSkillId?: string;
   questionId?: string;

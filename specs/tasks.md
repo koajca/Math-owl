@@ -24,7 +24,7 @@
 - [x] Hỗ trợ các kiểu câu hỏi: trắc nghiệm, nhập đáp án, điền số, so sánh.
 - [x] Tạo bộ chọn đáp án 3 hoặc 4 lựa chọn cho trắc nghiệm.
 - [x] Tạo trường nhập liệu cho câu hỏi nhập đáp án và điền số.
-- [x] Hiển thị gợi ý khi người chơi sai 2 lần liên tiếp.
+- [x] Hiển thị gợi ý ngay sau lần sai đầu ở Luyện tập; Thử thách không gợi ý.
 - [x] Cập nhật trạng thái đúng/sai và phản hồi từ cú mèo.
 - [x] Thêm đồng hồ đếm ngược cho mỗi câu.
 - [x] Xử lý khi hết giờ: tính là sai 1 lần, chuyển câu tiếp theo.
@@ -233,6 +233,19 @@
 - [x] Thêm trạng thái focus tương đương hover để dùng được bằng bàn phím.
 - [x] Kiểm thử responsive desktop/tablet/mobile cho các thay đổi UI mới.
 
+## Sprint 10: Responsive iPad, Đăng xuất, trả lời lại và focus
+
+- [x] Thêm breakpoint 599/899/1199, `dvh`, safe-area, touch/hover, reduced-motion.
+- [x] Responsive Setup/Home/Map/Selection/Quiz/Result cho phone, tablet dọc/ngang, desktop.
+- [x] Top bar mới có nút Đăng xuất và nhãn ẩn trên tablet/phone.
+- [x] Modal xác nhận Đăng xuất; mặc định giữ tiến độ, tuỳ chọn xoá dữ liệu.
+- [x] Luyện tập được trả lời 2 lần; sai lần đầu hiện thẻ gợi ý và khoá đáp án sai.
+- [x] Đúng lần hai +5 điểm; sai lần hai hoặc hết giờ mới kết thúc câu.
+- [x] Thử thách chỉ 1 lượt, không gợi ý.
+- [x] Ghi log `attemptCount`, `hintShown`, `retried`, `hintText`.
+- [x] Reset cuộn và đưa focus về `.question-box` khi chuyển câu.
+- [x] Cập nhật README và tài liệu requirements/design/tasks.
+
 ## Phân chia module theo độ ưu tiên
 
 ### Must have cho MVP
@@ -279,8 +292,8 @@
 - Mỗi câu được sinh trong lượt chơi có log `question_generated` đủ dữ liệu để tái hiện.
 - Khi người chơi trả lời hoặc hết giờ, app ghi log kết quả xử lý tương ứng.
 - Có thể export log thành `.jsonl` hoặc `.json` để review.
-- Hết giờ tự chuyển câu tiếp theo.
-- Sai 2 lần liên tiếp có gợi ý.
+- Hết giờ tự chuyển câu tiếp theo và không cho trả lời lại.
+- Luyện tập: sai lần đầu hiện gợi ý, cho trả lời lại; Thử thách không gợi ý/không retry.
 - Sai 3 lần liên tiếp bị trừ điểm.
 - Hoàn thành thử thách lưu tiến độ vào localStorage.
 - Độ khó/màn chơi mở khóa đúng theo số thử thách hoàn thành.
