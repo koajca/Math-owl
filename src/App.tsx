@@ -3,18 +3,21 @@ import { generateQuestionSession } from './data/questions';
 import {
   clearQuestionLogs,
   createSessionId,
-  exportQuestionLogs,
   getQuestionLogs,
   logQuestionAnswered,
   logQuestionGenerated,
   logQuestionTimeout,
   logTemplateIssue,
 } from './utils/appLogger';
-import { gameConfig, getAttemptConfig } from './game/gameConfig';
+import {
+  gameConfig,
+  getAttemptConfig,
+  getSessionQuestionCount,
+  getTimeLimit,
+} from './game/gameConfig';
 import { defaultState, loadAppState, saveAppState } from './utils/storage';
 import {
   clearSessionRecords,
-  exportSessionRecordsAsJson,
   getSessionRecords,
   saveSessionRecord,
 } from './utils/sessionHistory';
@@ -51,8 +54,8 @@ const difficultyName: Record<Difficulty, string> = {
 };
 
 const topicName: Record<Topic, string> = {
-  addition: 'Cộng',
-  subtraction: 'Trừ',
+  'add-sub': 'Cộng/Trừ',
+  'find-number': 'Tìm số',
   carry: 'Cộng trừ có nhớ',
   comparison: 'So sánh',
   mixed: 'Tổng hợp',
@@ -60,8 +63,8 @@ const topicName: Record<Topic, string> = {
 };
 
 const topicDescription: Record<Topic, string> = {
-  addition: 'Cây Cộng Số',
-  subtraction: 'Cầu Phép Trừ',
+  'add-sub': 'Cây Cộng & Cầu Trừ',
+  'find-number': 'Điền số còn thiếu',
   carry: 'Cộng có nhớ & trừ có mượn',
   comparison: 'Suối So Sánh',
   mixed: 'Đỉnh Núi Tổng Hợp',
@@ -71,6 +74,8 @@ const topicDescription: Record<Topic, string> = {
 const badgeLabels: Record<string, string> = {
   first_challenge: 'Cú Con Chăm Chỉ',
   perfect_run: 'Không Sai Câu Nào',
+  add_sub_star: 'Siêu Cộng Trừ',
+  find_number_star: 'Thám Tử Số',
   addition_star: 'Siêu Cộng Số',
   subtraction_master: 'Bậc Thầy Phép Trừ',
   carry_master: 'Bậc Thầy Nhớ & Mượn',
@@ -91,8 +96,8 @@ function getUnlocked(progress: AppState['progress']) {
       hard: mediumDone >= unlock.hardFromMediumChallenges,
     },
     topic: {
-      addition: true,
-      subtraction: true,
+      'add-sub': true,
+      'find-number': true,
       carry: true,
       comparison: true,
       mixed: completedChallenges >= unlock.mixedFromCompletedChallenges,
@@ -139,20 +144,39 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function getBadges(topic: Topic, correctCount: number, completedBefore: number) {
+export function getBadges(topic: Topic, correctCount: number, total: number, completedBefore: number) {
   const badges = new Set<string>();
+  const perfect = total > 0 && correctCount === total;
   if (completedBefore === 0) badges.add('first_challenge');
-  if (correctCount === 10) badges.add('perfect_run');
-  if (topic === 'addition' && correctCount === 10) badges.add('addition_star');
-  if (topic === 'subtraction' && correctCount === 10) badges.add('subtraction_master');
-  if (topic === 'carry' && correctCount === 10) badges.add('carry_master');
-  if (topic === 'comparison' && correctCount === 10) badges.add('comparison_eye');
-  if (topic === 'tower' && correctCount >= 8) badges.add('tower_wisdom');
+  if (perfect) badges.add('perfect_run');
+  if (topic === 'add-sub' && perfect) badges.add('add_sub_star');
+  if (topic === 'find-number' && perfect) badges.add('find_number_star');
+  if (topic === 'carry' && perfect) badges.add('carry_master');
+  if (topic === 'comparison' && perfect) badges.add('comparison_eye');
+  if (topic === 'tower' && correctCount >= Math.ceil(total * 0.8)) badges.add('tower_wisdom');
   return Array.from(badges);
 }
 
-function isGradeEnabled(grades: readonly Grade[], grade: Grade) {
-  return grades.includes(grade);
+const feedbackCopy = {
+  correct: ['Chính xác! Con thật tuyệt vời! 🌟', 'Đúng rồi! Con giỏi lắm! 🎉'],
+  retry: ['Không sao, con thử lại nhé! 💪'],
+  wrong: ['Không sao đâu, mình xem đáp án nhé! 😊'],
+  timeout: ['Hết giờ rồi, mình cùng xem đáp án nhé! 😊'],
+} as const;
+
+type FeedbackKind = keyof typeof feedbackCopy;
+
+/** Copy phản hồi thân thiện hơn cho Mầm non (grade 0). */
+function getFeedback(grade: Grade, kind: FeedbackKind, earned = 0) {
+  if (grade === 0) {
+    const copy = feedbackCopy[kind][0];
+    if (kind === 'correct' && earned > 0) return `${copy} +${earned} điểm.`;
+    return copy;
+  }
+  if (kind === 'correct') return earned > 0 ? `Chính xác! +${earned} điểm.` : 'Chính xác!';
+  if (kind === 'retry') return 'Chưa đúng, con thử lại một lần nữa nhé.';
+  if (kind === 'wrong') return 'Chưa đúng. Mình chuyển sang câu tiếp theo nhé.';
+  return 'Hết giờ! Câu này được tính sai.';
 }
 
 function OwlMascot({ mood, message }: { mood: OwlMood; message: string }) {
@@ -182,7 +206,7 @@ function App() {
   const [playerSoundEnabled, setPlayerSoundEnabled] = useState(true);
   const [mode, setMode] = useState<Mode>('practice');
   const [difficulty, setDifficulty] = useState<Difficulty>('easy');
-  const [topic, setTopic] = useState<Topic>('addition');
+  const [topic, setTopic] = useState<Topic>('add-sub');
   const [answerMode, setAnswerMode] = useState<AnswerMode>('auto');
   const [sessionQuestions, setSessionQuestions] = useState<Question[]>([]);
   const [sessionId, setSessionId] = useState('');
@@ -562,7 +586,7 @@ function App() {
     setPlayerAvatar('owl-blue');
     setPlayerSoundEnabled(true);
     setMode('practice');
-    setTopic('addition');
+    setTopic('add-sub');
     setDifficulty('easy');
     setAnswerMode('auto');
 
@@ -633,14 +657,17 @@ function App() {
   };
 
   const startSession = () => {
-    const chosenTopic = topic === 'tower' ? 'mixed' : topic;
+    const sessionGrade = state.profile?.grade ?? playerGrade;
+    const chosenTopic: Topic = topic === 'tower' ? 'mixed' : topic;
     const nextSessionId = createSessionId();
+    const questionCount = getSessionQuestionCount(sessionGrade);
     const batch = generateQuestionSession(
-      state.profile?.grade ?? playerGrade,
+      sessionGrade,
       chosenTopic,
       difficulty,
-      10,
-      answerMode
+      questionCount,
+      answerMode,
+      { mode }
     );
     const questions = batch.questions;
     const logContext = buildLogContext(nextSessionId);
@@ -703,21 +730,27 @@ function App() {
 
   const finishSession = () => {
     cleanupPendingTimeout();
+    const sessionGrade = state.profile?.grade ?? playerGrade;
     // Lấy từ kết quả đã ghi để tránh closure dùng state correctCount cũ
     // khi timeout chuyển câu được schedule trước lần render cuối.
+    const total = sessionQuestions.length || getSessionQuestionCount(sessionGrade);
     const finalCorrectCount = sessionResultsRef.current.filter((item) => item.isCorrect).length;
+    const goodThreshold = Math.ceil(total * 0.8);
+    const perfect = finalCorrectCount === total;
+    const good = finalCorrectCount >= goodThreshold;
     let finalScore = sessionScoreRef.current;
     let rewardText = '';
     const completedBefore = state.progress.completedChallenges;
-    const earnedBadges = mode === 'challenge' ? getBadges(topic, finalCorrectCount, completedBefore) : [];
+    const earnedBadges =
+      mode === 'challenge' ? getBadges(topic, finalCorrectCount, total, completedBefore) : [];
 
     if (mode === 'challenge') {
-      if (finalCorrectCount === 10) {
+      if (perfect) {
         finalScore += 50;
-        rewardText = 'Hoàn thành 10/10: +50 điểm và nhận huy hiệu!';
-      } else if (finalCorrectCount >= 8) {
+        rewardText = `Hoàn thành ${total}/${total}: +50 điểm và nhận huy hiệu!`;
+      } else if (good) {
         finalScore += 20;
-        rewardText = 'Hoàn thành từ 8 câu đúng: +20 điểm!';
+        rewardText = `Hoàn thành từ ${goodThreshold} câu đúng: +20 điểm!`;
       }
     }
 
@@ -757,8 +790,14 @@ function App() {
           ? 'Đã hoàn thành thử thách. Mỗi lần chơi đều giúp khu rừng sáng hơn.'
           : 'Kết thúc lượt luyện tập.')
     );
-    setOwlMood(finalCorrectCount >= 8 ? 'celebrate' : 'thinking');
-    setOwlMessage(finalCorrectCount >= 8 ? 'Con làm tốt lắm!' : 'Mình luyện thêm một lượt nữa nhé.');
+    setOwlMood(perfect || good ? 'celebrate' : 'thinking');
+    setOwlMessage(
+      sessionGrade === 0
+        ? `Con làm được ${finalCorrectCount}/${total} câu! Giỏi lắm! 🌟`
+        : good
+        ? 'Con làm tốt lắm!'
+        : 'Mình luyện thêm một lượt nữa nhé.'
+    );
     playAudio('finish');
 
     persistCurrentSession('completed', {
@@ -814,14 +853,14 @@ function App() {
     });
     setLogCount(getQuestionLogs().length);
     playAudio('timeout');
-    const missPenalty = handleFinalMiss('Hết giờ! Câu này được tính sai.', 'timeout');
+    const missPenalty = handleFinalMiss(getFeedback(state.profile?.grade ?? playerGrade, 'timeout'), 'timeout');
     recordQuestionResult({
       index: currentIndex + 1,
       questionId: currentQuestion.id,
       templateId: currentQuestion.templateId,
       sourceSkillId: currentQuestion.sourceSkillId,
       questionType: currentQuestion.questionType,
-      topic,
+      topic: currentQuestion.topic,
       difficulty,
       prompt: currentQuestion.text,
       choices: currentQuestion.choices,
@@ -936,7 +975,8 @@ function App() {
 
     answerLockRef.current = true;
     const attempt = attemptCountRef.current;
-    const modeConfig = getAttemptConfig(mode);
+    const sessionGrade = state.profile?.grade ?? playerGrade;
+    const modeConfig = getAttemptConfig(mode, sessionGrade);
     const timeSpentSeconds = currentQuestion.timeLimit - timer;
     const isCorrect = isAnswerCorrect(currentQuestion, answer);
     const userInteractionState = getUserInteractionState(currentQuestion, answer);
@@ -963,7 +1003,7 @@ function App() {
       applyScoreDelta(earned);
       setCorrectCount((value) => value + 1);
       setConsecutiveMisses(0);
-      setFeedback(attempt === 0 ? `Chính xác! +${earned} điểm.` : `Đúng rồi! +${earned} điểm.`);
+      setFeedback(getFeedback(sessionGrade, 'correct', earned));
       setOwlMood('happy');
       setOwlMessage('Giỏi lắm!');
       playAudio('correct');
@@ -973,7 +1013,7 @@ function App() {
         templateId: currentQuestion.templateId,
         sourceSkillId: currentQuestion.sourceSkillId,
         questionType: currentQuestion.questionType,
-        topic,
+        topic: currentQuestion.topic,
         difficulty,
         prompt: currentQuestion.text,
         choices: currentQuestion.choices,
@@ -1015,7 +1055,7 @@ function App() {
 
       attemptCountRef.current = nextAttempt;
       setAttemptCount(nextAttempt);
-      setFeedback('Chưa đúng, con thử lại một lần nữa nhé.');
+      setFeedback(getFeedback(sessionGrade, 'retry'));
       setOwlMood('thinking');
       if (modeConfig.hintOnFirstWrong) {
         setShowHint(true);
@@ -1044,7 +1084,7 @@ function App() {
     }
 
     // Hết lượt: câu kết thúc, chỉ tăng chuỗi sai một lần và chuyển câu.
-    const missPenalty = handleFinalMiss('Chưa đúng. Mình chuyển sang câu tiếp theo nhé.');
+    const missPenalty = handleFinalMiss(getFeedback(sessionGrade, 'wrong'));
     logQuestionAnswered(buildLogContext(), currentQuestion, {
       userAnswer: submittedAnswer,
       isCorrect: false,
@@ -1064,7 +1104,7 @@ function App() {
       templateId: currentQuestion.templateId,
       sourceSkillId: currentQuestion.sourceSkillId,
       questionType: currentQuestion.questionType,
-      topic,
+      topic: currentQuestion.topic,
       difficulty,
       prompt: currentQuestion.text,
       choices: currentQuestion.choices,
@@ -1100,7 +1140,11 @@ function App() {
         </button>
         <div className="top-identity">
           <strong>{state.profile?.name ?? (playerName || 'Bạn nhỏ')}</strong>
-          <span>Lớp {state.profile?.grade ?? playerGrade}</span>
+          <span>
+            {(state.profile?.grade ?? playerGrade) === 0
+              ? 'Mầm non'
+              : `Lớp ${state.profile?.grade ?? playerGrade}`}
+          </span>
         </div>
         <div className="top-score">
           <strong>⭐ {state.progress.totalScore}</strong>
@@ -1147,9 +1191,11 @@ function App() {
         <p className="eyebrow">Khu Rừng Toán Học</p>
         <h1>Cú Mèo Toán Học</h1>
         <p className="subtitle">
-          {playerGrade === 2
+          {playerGrade === 0
+            ? 'Luyện cộng, trừ trong phạm vi 10 qua các thử thách vui nhộn.'
+            : playerGrade === 2
             ? 'Luyện cộng, trừ có nhớ và tư duy toán học qua các thử thách ngắn.'
-            : 'Luyện cộng, trừ và so sánh số qua các thử thách ngắn.'}
+            : 'Luyện cộng, trừ, tìm số và so sánh số qua các thử thách ngắn.'}
         </p>
         <OwlMascot mood="idle" message="Xin chào, con nhập tên để bắt đầu nhé!" />
       </section>
@@ -1163,14 +1209,14 @@ function App() {
         <div>
           <div className="section-title">Con học lớp nào?</div>
           <div className="segmented">
-            {[1, 2].map((grade) => (
+            {[0, 1, 2].map((grade) => (
               <button
                 key={grade}
                 type="button"
                 className={playerGrade === grade ? 'active' : ''}
                 onClick={() => setPlayerGrade(grade as Grade)}
               >
-                Lớp {grade}
+                {grade === 0 ? 'Mầm non' : `Lớp ${grade}`}
               </button>
             ))}
           </div>
@@ -1238,12 +1284,6 @@ function App() {
             >
               Thử thách
             </button>
-            <button className="secondary-button" type="button" onClick={exportQuestionLogs}>
-              Xuất log ({logCount})
-            </button>
-            <button className="secondary-button" type="button" onClick={exportSessionRecordsAsJson}>
-              Lưu lịch sử chơi ({sessionCount})
-            </button>
           </div>
         </div>
         <OwlMascot mood="happy" message="Hôm nay mình cùng thắp sáng khu rừng nhé!" />
@@ -1274,35 +1314,18 @@ function App() {
           <strong>{state.progress.badges.length}</strong>
           <span>Huy hiệu</span>
         </div>
-        <div className="stat-card">
-          <strong>{logCount}</strong>
-          <span>Log câu hỏi</span>
-        </div>
-        <div className="stat-card">
-          <strong>{sessionCount}</strong>
-          <span>Lượt chơi đã lưu</span>
-        </div>
       </section>
-
-      <p className="storage-note">
-        Dữ liệu chơi được lưu tự động vào trình duyệt (localStorage) và file{' '}
-        <code>data/play-sessions.json</code> khi chạy <code>npm run dev</code>.
-      </p>
     </main>
   );
 
   const renderMap = () => {
     const grade = state.profile?.grade ?? playerGrade;
-    const nodes: Topic[] = [
-      'addition',
-      'subtraction',
-      ...(isGradeEnabled(gameConfig.carry.enabledForGrades, grade) ? (['carry'] as Topic[]) : []),
-      ...(isGradeEnabled(gameConfig.comparison.enabledForGrades, grade)
-        ? (['comparison'] as Topic[])
-        : []),
-      'mixed',
-      'tower',
-    ];
+    const nodes: Topic[] =
+      grade === 0
+        ? ['add-sub', 'comparison', 'mixed', 'tower']
+        : grade === 1
+        ? ['add-sub', 'find-number', 'comparison', 'mixed', 'tower']
+        : ['add-sub', 'find-number', 'carry', 'comparison', 'mixed', 'tower'];
     return (
       <main className="screen">
         {renderTopBar()}
@@ -1339,68 +1362,79 @@ function App() {
     );
   };
 
-  const renderSelection = () => (
-    <main className="screen">
-      {renderTopBar()}
-      <section className="panel">
-        <div className="screen-heading">
-          <div>
-            <p className="eyebrow">{topicDescription[topic]}</p>
-            <h2>Chuẩn bị chơi</h2>
+  const renderSelection = () => {
+    const grade = state.profile?.grade ?? playerGrade;
+    return (
+      <main className="screen">
+        {renderTopBar()}
+        <section className="panel">
+          <div className="screen-heading">
+            <div>
+              <p className="eyebrow">{topicDescription[topic]}</p>
+              <h2>Chuẩn bị chơi</h2>
+            </div>
+            <button className="secondary-button" type="button" onClick={() => setPage('map')}>
+              Đổi chủ đề
+            </button>
           </div>
-          <button className="secondary-button" type="button" onClick={() => setPage('map')}>
-            Đổi chủ đề
+
+          <div className="section-title">Chọn độ khó</div>
+          <div className="option-grid three">
+            {(['easy', 'medium', 'hard'] as Difficulty[]).map((level) => (
+              <button
+                key={level}
+                type="button"
+                className={`option-card ${difficulty === level ? 'selected' : ''} ${
+                  !unlocked.difficulty[level] ? 'locked' : ''
+                }`}
+                onClick={() => selectDifficulty(level)}
+              >
+                <strong>{difficultyName[level]}</strong>
+                <span>
+                  {unlocked.difficulty[level]
+                    ? `${getTimeLimit(grade, level)}s/câu`
+                    : getLockedReason(level, state.progress)}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {topic === 'find-number' && (
+            <p className="storage-note">Con sẽ tìm số còn thiếu trong phép tính.</p>
+          )}
+
+          {topic === 'carry' && grade === 2 && (
+            <p className="storage-note">
+              Phạm vi hiện tại: Cộng trừ có nhớ {carryRangeLabel} ({carryRange.min}–{carryRange.max}).
+            </p>
+          )}
+
+          <div className="section-title">Kiểu trả lời</div>
+          <div className="segmented wrap">
+            {[
+              ['auto', 'Tự động'],
+              ['choice', 'Chọn đáp án'],
+              ['input', 'Nhập số/dấu'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={answerMode === value ? 'active' : ''}
+                onClick={() => setAnswerMode(value as AnswerMode)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {feedback && <p className="feedback">{feedback}</p>}
+          <button className="primary-button wide" type="button" onClick={startSession}>
+            Bắt đầu {mode === 'challenge' ? 'thử thách' : 'luyện tập'}
           </button>
-        </div>
-
-        <div className="section-title">Chọn độ khó</div>
-        <div className="option-grid three">
-          {(['easy', 'medium', 'hard'] as Difficulty[]).map((level) => (
-            <button
-              key={level}
-              type="button"
-              className={`option-card ${difficulty === level ? 'selected' : ''} ${
-                !unlocked.difficulty[level] ? 'locked' : ''
-              }`}
-              onClick={() => selectDifficulty(level)}
-            >
-              <strong>{difficultyName[level]}</strong>
-              <span>{unlocked.difficulty[level] ? `${level === 'easy' ? 30 : level === 'medium' ? 25 : 20}s/câu` : getLockedReason(level, state.progress)}</span>
-            </button>
-          ))}
-        </div>
-
-        {topic === 'carry' && (
-          <p className="storage-note">
-            Phạm vi hiện tại: Cộng trừ có nhớ {carryRangeLabel} ({carryRange.min}–{carryRange.max}).
-          </p>
-        )}
-
-        <div className="section-title">Kiểu trả lời</div>
-        <div className="segmented wrap">
-          {[
-            ['auto', 'Tự động'],
-            ['choice', 'Chọn đáp án'],
-            ['input', 'Nhập số/dấu'],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              className={answerMode === value ? 'active' : ''}
-              onClick={() => setAnswerMode(value as AnswerMode)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {feedback && <p className="feedback">{feedback}</p>}
-        <button className="primary-button wide" type="button" onClick={startSession}>
-          Bắt đầu {mode === 'challenge' ? 'thử thách' : 'luyện tập'}
-        </button>
-      </section>
-    </main>
-  );
+        </section>
+      </main>
+    );
+  };
 
   const placeSortTile = (source: SortDragSource, slotIndex: number) => {
     const nextPool = [...sortPool];
@@ -1770,7 +1804,7 @@ function App() {
           <div className="quiz-panel">
             <div className="quiz-status">
               <div className="quiz-meta">
-                <span>Câu {currentIndex + 1}/10</span>
+                <span>Câu {currentIndex + 1}/{sessionQuestions.length}</span>
                 <span>⭐ {score}</span>
                 <span className={timer <= 5 ? 'danger-text' : ''}>{timer}s</span>
               </div>
@@ -1808,6 +1842,8 @@ function App() {
 
   const renderResult = () => {
     const unlockedNow = getProgressMessage(state.progress);
+    const sessionGrade = state.profile?.grade ?? playerGrade;
+    const total = sessionQuestions.length || getSessionQuestionCount(sessionGrade);
 
     return (
       <main className="screen">
@@ -1816,10 +1852,10 @@ function App() {
           <OwlMascot mood={owlMood} message={owlMessage} />
           <div className="panel">
             <p className="eyebrow">Kết quả</p>
-            <h2>Hoàn thành lượt chơi!</h2>
+            <h2>{sessionGrade === 0 ? 'Con đã hoàn thành lượt chơi!' : 'Hoàn thành lượt chơi!'}</h2>
             <div className="result-grid">
               <div>
-                <strong>{correctCount}/10</strong>
+                <strong>{correctCount}/{total}</strong>
                 <span>Câu đúng</span>
               </div>
               <div>
@@ -1900,8 +1936,14 @@ function App() {
     </div>
   );
 
+  const neutralPage = page === 'setup' || page === 'home';
+
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      data-mode={neutralPage ? undefined : mode}
+      data-grade={state.profile?.grade ?? playerGrade}
+    >
       {page === 'setup' && renderSetup()}
       {page === 'home' && renderHome()}
       {page === 'map' && renderMap()}

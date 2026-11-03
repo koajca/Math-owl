@@ -1,6 +1,6 @@
 # Tasks triển khai — Cập nhật Giao diện & Tính năng Game Cú Mèo Toán Học
 
-- **Trạng thái:** Kế hoạch — chưa triển khai (dùng để review)
+- **Trạng thái:** Đã triển khai — 02/11/2026 (dùng để review)
 - **Ngày tạo:** 30/10/2026
 - **Tài liệu gốc:** [`requirements.md`](./requirements.md) (đã chốt Q1–Q18)
 - **Thiết kế:** [`designs.md`](./designs.md) (D1–D10)
@@ -18,7 +18,7 @@
 | ⏸ Blocked | Đang chờ quyết định/bug khác |
 | ❌ Bỏ | Không làm trong iteration này |
 
-> Toàn bộ task dưới đây đang ở trạng thái ⬜ Todo. Tài liệu này **chưa thực hiện thay đổi code nào**.
+> Toàn bộ task T0–T14 đã được triển khai và kiểm tra bằng `npm run build` + `npm test` (39 test). Bảng trạng thái bên dưới phản ánh kết quả triển khai.
 
 ---
 
@@ -26,21 +26,21 @@
 
 | ID | Task | Phụ thuộc | Ước lượng | Trạng thái |
 |---|---|---|---:|---|
-| **T0** | Di chuyển ảnh vào `src/assets/images/` | — | 0.1 ngày | ⬜ Todo |
-| **T1** | Types: Grade 0, Topic mới, legacy topic, log field | — | 0.5 ngày | ⬜ Todo |
-| **T2** | Config 3 cấp + accessor + migration storage | T1 | 0.75 ngày | ⬜ Todo |
-| **T3** | Engine: mapping, grade policy, quota, rule/constraint mới | T1, T2 | 1.5 ngày | ⬜ Todo |
-| **T4** | Templates JSON: Mầm non, Tìm số, So sánh biểu thức | T1 | 1.0 ngày | ⬜ Todo |
-| **T5** | Fallback questions theo grade/topic mới | T1, T2 | 0.5 ngày | ⬜ Todo |
-| **T6** | Setup: thêm nút Mầm non + top-bar label | T1 | 0.25 ngày | ⬜ Todo |
-| **T7** | Map: node mới theo lớp, bỏ addition/subtraction | T1, T3 | 0.5 ngày | ⬜ Todo |
-| **T8** | Home: bỏ 2 nút export, storage note, 2 stat card | — | 0.25 ngày | ⬜ Todo |
-| **T9** | Theme Practice/Challenge + 3 attempts Mầm non | T7 | 0.5 ngày | ⬜ Todo |
-| **T10** | Xen bài cấp dưới (≤33%, chỉ Practice) | T3, T5 | 0.5 ngày | ⬜ Todo |
-| **T11** | CSS: node mới, theme, typography Mầm non | T6, T7, T9 | 0.5 ngày | ⬜ Todo |
-| **T12** | Badge mới + scale threshold theo số câu | T7 | 0.25 ngày | ⬜ Todo |
-| **T13** | Vitest + test matrix + QA thủ công | T0–T12 | 1.0 ngày | ⬜ Todo |
-| **T14** | README, specs, đóng gói tài liệu | T13 | 0.25 ngày | ⬜ Todo |
+| **T0** | Di chuyển ảnh vào `src/assets/images/` | — | 0.1 ngày | ✅ Done |
+| **T1** | Types: Grade 0, Topic mới, legacy topic, log field | — | 0.5 ngày | ✅ Done |
+| **T2** | Config 3 cấp + accessor + migration storage | T1 | 0.75 ngày | ✅ Done |
+| **T3** | Engine: mapping, grade policy, quota, rule/constraint mới | T1, T2 | 1.5 ngày | ✅ Done |
+| **T4** | Templates JSON: Mầm non, Tìm số, So sánh biểu thức | T1 | 1.0 ngày | ✅ Done |
+| **T5** | Fallback questions theo grade/topic mới | T1, T2 | 0.5 ngày | ✅ Done |
+| **T6** | Setup: thêm nút Mầm non + top-bar label | T1 | 0.25 ngày | ✅ Done |
+| **T7** | Map: node mới theo lớp, bỏ addition/subtraction | T1, T3 | 0.5 ngày | ✅ Done |
+| **T8** | Home: bỏ 2 nút export, storage note, 2 stat card | — | 0.25 ngày | ✅ Done |
+| **T9** | Theme Practice/Challenge + 3 attempts Mầm non | T7 | 0.5 ngày | ✅ Done |
+| **T10** | Xen bài cấp dưới (≤33%, chỉ Practice) | T3, T5 | 0.5 ngày | ✅ Done |
+| **T11** | CSS: node mới, theme, typography Mầm non | T6, T7, T9 | 0.5 ngày | ✅ Done |
+| **T12** | Badge mới + scale threshold theo số câu | T7 | 0.25 ngày | ✅ Done |
+| **T13** | Vitest + test matrix + QA thủ công | T0–T12 | 1.0 ngày | ✅ Done |
+| **T14** | README, specs, đóng gói tài liệu | T13 | 0.25 ngày | ✅ Done |
 | | **Tổng** | | **~8.4 ngày** | |
 
 ### 1.1 Dependency graph
@@ -768,4 +768,13 @@ npm run dev       # kiểm tra thủ công
 - Mọi thay đổi hành vi phải có test hoặc case QA tương ứng.
 - Không sửa trực tiếp dữ liệu thật trong `data/play-sessions.json`.
 - Khi test migration: dùng localStorage giả hoặc profile mới, không xóa dữ liệu người chơi thật.
+
+### 9.1 Kết quả triển khai (02/11/2026)
+
+- `npm run build`: pass (TypeScript + Vite).
+- `npm test`: 39/39 test pass, chạy ổn định 3 lần liên tiếp.
+- Đã bổ sung Vitest 3.2.4 (tương thích Vite 5), cấu hình tại `vitest.config.ts`.
+- Test bao phủ: grade policy, tỉ lệ add-sub/carry, 4 dạng Tìm số, quota So sánh, xen cấp dưới, migration storage, badge và fallback.
+- QA thủ công responsive/trình duyệt và kiểm tra ghi `data/play-sessions.json` cần chạy lại trên môi trường có giao diện (không thực hiện trong phiên tự động này).
+- Backlog giữ nguyên: progressive difficulty, minh họa emoji, TTS, streak bonus, pie chart kết quả.
 - Nếu phát hiện requirement mâu thuẫn trong lúc code: dừng, cập nhật `requirements.md` + `designs.md` trước khi tiếp tục.

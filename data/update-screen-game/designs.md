@@ -1,6 +1,6 @@
 # Thiết kế kỹ thuật — Cập nhật Giao diện & Tính năng Game Cú Mèo Toán Học
 
-- **Trạng thái:** Đã thiết kế — chưa triển khai
+- **Trạng thái:** Đã triển khai — 02/11/2026
 - **Ngày tạo:** 30/10/2026
 - **Nguồn yêu cầu:** [`requirements.md`](./requirements.md) (đã chốt Q1–Q18)
 - **Phạm vi:** Mầm non (grade 0), Lớp 1, Lớp 2

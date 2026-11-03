@@ -7,10 +7,13 @@ let logCache: QuestionPlayLog[] | null = null;
 type BaseLogContext = {
   sessionId: string;
   playerName?: string;
+  /** Lớp của phiên chơi. */
   grade: Grade;
   mode: Mode;
   topic: Topic;
   difficulty: Difficulty;
+  /** Lớp thực tế sinh ra câu hỏi (có thể thấp hơn lớp phiên khi xen bài cấp dưới). */
+  questionGrade?: Grade;
 };
 
 const createId = (prefix: string) =>
@@ -57,6 +60,7 @@ export function appendQuestionLog(log: Omit<QuestionPlayLog, 'eventId' | 'timest
 export function logQuestionGenerated(context: BaseLogContext, question: Question) {
   appendQuestionLog({
     ...context,
+    questionGrade: question.grade,
     eventType: 'question_generated',
     questionId: question.id,
     templateId: question.templateId,
@@ -88,6 +92,7 @@ export function logQuestionAnswered(
 ) {
   appendQuestionLog({
     ...context,
+    questionGrade: question.grade,
     eventType: 'question_answered',
     questionId: question.id,
     templateId: question.templateId,
@@ -115,6 +120,7 @@ export function logQuestionTimeout(
 ) {
   appendQuestionLog({
     ...context,
+    questionGrade: question.grade,
     eventType: 'question_timeout',
     questionId: question.id,
     templateId: question.templateId,

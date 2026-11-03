@@ -1,6 +1,6 @@
 # Requirements — Cập nhật Giao diện & Tính năng Game Cú Mèo Toán Học
 
-- **Trạng thái:** Spec đã chốt — chưa triển khai
+- **Trạng thái:** Đã triển khai — 02/11/2026
 - **Ngày tạo:** 29/10/2026
 - **Ngày chốt quyết định:** 29/10/2026 (xem [mục 0](#0-quyết-định-đã-chốt-29102026))
 - **Phạm vi:** Tái cấu trúc hệ thống lớp, giao diện, và thiết kế độ khó cho 3 cấp: **Mầm non**, **Lớp 1**, **Lớp 2**

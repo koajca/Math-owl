@@ -1,5 +1,5 @@
 import templatesJson from '../data/questionTemplates.json';
-import { gameConfig } from './gameConfig';
+import { gameConfig, getTimeLimit as getConfigTimeLimit, getTopicRange } from './gameConfig';
 import type {
   AnswerMode,
   ClockHourPayload,
@@ -10,12 +10,16 @@ import type {
   QuestionTemplate,
   RelativeDatePayload,
   SortNumbersPayload,
+  TemplateTopic,
   TemplateValue,
   Topic,
   WeekdayBlankPayload,
 } from '../types';
 
 type ConcreteTopic = Exclude<Topic, 'tower'>;
+type EffectiveTopic = 'add-sub' | 'find-number' | 'carry' | 'comparison' | 'mixed';
+type ComparisonForm = 'twoNumbers' | 'exprLeft' | 'exprRight';
+type CarryNeed = boolean | undefined;
 
 export interface TemplateDiagnostic {
   type: 'template_skipped' | 'template_validation_error';
@@ -29,16 +33,47 @@ export interface QuestionBatch {
   diagnostics: TemplateDiagnostic[];
 }
 
+export interface BatchPlans {
+  operatorPlan?: Array<'+' | '-'>;
+  carryPlan?: boolean[];
+  formPlan?: ComparisonForm[];
+}
+
+export interface BatchOptions extends BatchPlans {
+  rng?: () => number;
+}
+
 type Context = Record<string, TemplateValue>;
 
 const templates = templatesJson as unknown as QuestionTemplate[];
 
-const randomInt = (min: number, max: number) =>
-  Math.floor(Math.random() * (max - min + 1)) + min;
+// ---------------------------------------------------------------------------
+// Random source (có hook để test)
+// ---------------------------------------------------------------------------
 
-const pick = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
+let randomSource: () => number = Math.random;
 
-const shuffle = <T,>(items: T[]) => [...items].sort(() => Math.random() - 0.5);
+/** Chỉ dùng cho test: thay nguồn random, truyền `null` để khôi phục Math.random. */
+export function setRandomSource(fn: (() => number) | null) {
+  randomSource = fn ?? Math.random;
+}
+
+const random = () => randomSource();
+
+const randomInt = (min: number, max: number) => Math.floor(random() * (max - min + 1)) + min;
+
+const pick = <T,>(items: T[]) => items[Math.floor(random() * items.length)];
+
+const shuffleWith = <T,>(items: T[], rng: () => number) => {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(rng() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
+};
+
+const shuffle = <T,>(items: T[]) => shuffleWith(items, random);
 
 const formatTwoDigits = (value: number) => value.toString().padStart(2, '0');
 
@@ -54,6 +89,9 @@ const noBorrow = (a: number, b: number) => a >= b && ones(a) >= ones(b);
 const hasCarry = (a: number, b: number) => ones(a) + ones(b) >= 10;
 
 const hasBorrow = (a: number, b: number) => a >= b && ones(a) < ones(b);
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
 
 type CarryRange = { min: number; max: number };
 
@@ -81,23 +119,129 @@ const isGradeEnabled = (grades: readonly Grade[], grade: Grade) => grades.includ
 const matchesList = <T extends string | number>(value: T, candidate: T | T[]) =>
   Array.isArray(candidate) ? candidate.includes(value) : candidate === value;
 
-const getLimit = (grade: Grade, difficulty: Difficulty) => {
-  if (grade === 1) {
-    if (difficulty === 'easy') return 10;
-    if (difficulty === 'medium') return 20;
-    return 99;
+const effectiveMaxOf = (range: { max: number; resultMax?: number }) =>
+  range.resultMax ?? range.max;
+
+// ---------------------------------------------------------------------------
+// Topic → template mapping
+// ---------------------------------------------------------------------------
+
+const TOPIC_TEMPLATE_MAP: Record<ConcreteTopic, TemplateTopic[]> = {
+  'add-sub': ['addition', 'subtraction'],
+  'find-number': ['missing-number'],
+  carry: ['carry'],
+  comparison: ['comparison'],
+  mixed: ['addition', 'subtraction', 'missing-number', 'carry', 'comparison'],
+};
+
+function templateMatchesTopic(template: QuestionTemplate, topic: ConcreteTopic) {
+  return TOPIC_TEMPLATE_MAP[topic].includes(template.topic);
+}
+
+function operatorOfTemplate(template: QuestionTemplate): '+' | '-' {
+  if (template.answerRule === 'difference' || template.answerRule === 'missingSubtrahend' || template.answerRule === 'missingMinuend') {
+    return '-';
+  }
+  if (template.tags.includes('subtraction')) return '-';
+  if (template.tags.includes('addition')) return '+';
+  return '+';
+}
+
+function comparisonFormOf(template: QuestionTemplate): ComparisonForm {
+  if (template.tags.includes('expr-right')) return 'exprRight';
+  if (template.tags.includes('expr-left')) return 'exprLeft';
+  if (template.tags.includes('two-numbers')) return 'twoNumbers';
+  if (template.answerRule === 'compareNumExpr') return 'exprRight';
+  if (template.answerRule === 'compareExprNum') return 'exprLeft';
+  return 'twoNumbers';
+}
+
+function effectiveTopicOf(template: QuestionTemplate, sessionTopic: ConcreteTopic): EffectiveTopic {
+  if (template.topic === 'addition' || template.topic === 'subtraction') {
+    return sessionTopic === 'add-sub' ? 'add-sub' : 'add-sub';
+  }
+  if (template.topic === 'carry') return sessionTopic === 'add-sub' ? 'add-sub' : 'carry';
+  if (template.topic === 'comparison') return 'comparison';
+  if (template.topic === 'missing-number') {
+    return template.tags.includes('find-number') ? 'find-number' : 'mixed';
+  }
+  return 'mixed';
+}
+
+function allowedFindNumberTags(difficulty: Difficulty): string[] {
+  if (difficulty === 'hard') {
+    return ['blank-right-add', 'blank-left-add', 'blank-right-subtract', 'blank-left-subtract'];
+  }
+  return ['blank-right-add', 'blank-left-add'];
+}
+
+// ---------------------------------------------------------------------------
+// Quota plans (D4)
+// ---------------------------------------------------------------------------
+
+export function planByWeights<T extends string>(
+  count: number,
+  weights: Record<T, number>,
+  rng: () => number = random
+): T[] {
+  const entries = Object.entries(weights) as Array<[T, number]>;
+  const total = entries.reduce((sum, [, weight]) => sum + Math.max(0, weight), 0) || 1;
+  const base = entries.map(([key, weight]) => {
+    const exact = (count * Math.max(0, weight)) / total;
+    return { key, exact, count: Math.floor(exact) };
+  });
+
+  let assigned = base.reduce((sum, entry) => sum + entry.count, 0);
+  const remainder = count - assigned;
+  const order = base
+    .map((entry, index) => ({ index, fraction: entry.exact - Math.floor(entry.exact) }))
+    .sort((a, b) => b.fraction - a.fraction);
+
+  for (let step = 0; step < remainder && order.length > 0; step += 1) {
+    base[order[step % order.length].index].count += 1;
+    assigned += 1;
   }
 
-  if (difficulty === 'easy') return 40;
-  if (difficulty === 'medium') return 80;
-  return 99;
-};
+  const list: T[] = [];
+  base.forEach((entry) => {
+    for (let index = 0; index < entry.count; index += 1) list.push(entry.key);
+  });
 
-const getTimeLimit = (template: QuestionTemplate, difficulty: Difficulty) => {
-  if (difficulty === 'easy') return Math.max(template.timeLimitSeconds, 30);
-  if (difficulty === 'medium') return Math.min(template.timeLimitSeconds, 25);
-  return Math.min(template.timeLimitSeconds, 20);
-};
+  return shuffleWith(list, rng);
+}
+
+export function buildPlans(
+  grade: Grade,
+  topic: ConcreteTopic,
+  count: number,
+  rng: () => number = random
+): BatchPlans {
+  const plans: BatchPlans = {};
+
+  if (topic === 'add-sub') {
+    plans.operatorPlan = planByWeights(count, gameConfig.addSub.mix, rng).map((key) =>
+      key === 'addition' ? '+' : '-'
+    );
+    if (grade === 2) {
+      const carryRatio = gameConfig.gradeConstraints[2].addSubCarryRatio ?? 0.5;
+      plans.carryPlan = planByWeights(
+        count,
+        { carry: carryRatio, plain: 1 - carryRatio },
+        rng
+      ).map((key) => key === 'carry');
+    }
+  }
+
+  if (topic === 'comparison') {
+    plans.formPlan = planByWeights(count, gameConfig.comparisonMix[grade], rng);
+  }
+
+  return plans;
+}
+
+// ---------------------------------------------------------------------------
+// Template validation
+// ---------------------------------------------------------------------------
 
 const renderTemplate = (template: string, context: Context) =>
   template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
@@ -143,6 +287,7 @@ function validateTemplate(template: QuestionTemplate): string[] {
     'answer',
     'leftValue',
     'rightValue',
+    'exprValue',
   ]);
 
   [
@@ -163,6 +308,10 @@ function validateTemplate(template: QuestionTemplate): string[] {
   return errors;
 }
 
+// ---------------------------------------------------------------------------
+// Variables & answer evaluation
+// ---------------------------------------------------------------------------
+
 function buildVariables(template: QuestionTemplate): Context {
   return Object.fromEntries(
     Object.entries(template.variables).map(([key, variable]) => {
@@ -172,10 +321,27 @@ function buildVariables(template: QuestionTemplate): Context {
   );
 }
 
+/** Kẹp mọi biến `integer` vào phạm vi của lớp/độ khó. */
+function clampVariables(
+  template: QuestionTemplate,
+  context: Context,
+  range: { min: number; max: number }
+): Context {
+  const next: Context = { ...context };
+  Object.entries(template.variables).forEach(([key, variable]) => {
+    if (variable.type !== 'integer') return;
+    const value = asNumber(next[key]);
+    if (Number.isFinite(value)) {
+      next[key] = clamp(value, range.min, range.max);
+    }
+  });
+  return next;
+}
+
 function pickWeightedComparisonSign(): '>' | '<' | '=' {
   const weights = gameConfig.comparisonSigns;
   const total = weights.greaterWeight + weights.equalWeight + weights.lessWeight;
-  const roll = Math.random() * total;
+  const roll = random() * total;
 
   if (roll < weights.greaterWeight) return '>';
   if (roll < weights.greaterWeight + weights.equalWeight) return '=';
@@ -185,31 +351,56 @@ function pickWeightedComparisonSign(): '>' | '<' | '=' {
 function applyComparisonPreference(
   template: QuestionTemplate,
   context: Context,
-  grade: Grade,
-  difficulty: Difficulty,
+  range: { min: number; max: number },
   preferredAnswer?: '>' | '<' | '='
-) {
-  if (template.answerRule !== 'compareValues') return context;
-
-  const limit = getLimit(grade, difficulty);
+): Context {
+  const form = comparisonFormOf(template);
   const relation = preferredAnswer ?? pickWeightedComparisonSign();
 
-  if (relation === '=') {
-    const value = randomInt(0, limit);
-    return { ...context, left: value, right: value };
-  }
+  if (form === 'twoNumbers') {
+    const { min, max } = range;
+    if (relation === '=') {
+      const value = randomInt(min, max);
+      return { ...context, left: value, right: value };
+    }
 
-  if (limit <= 0) return { ...context, left: 0, right: 0 };
+    if (max <= min) return { ...context, left: min, right: min };
 
-  if (relation === '>') {
-    const left = randomInt(1, limit);
-    const right = randomInt(0, left - 1);
+    if (relation === '>') {
+      const right = randomInt(min, max - 1);
+      const left = randomInt(right + 1, max);
+      return { ...context, left, right };
+    }
+
+    const left = randomInt(min, max - 1);
+    const right = randomInt(left + 1, max);
     return { ...context, left, right };
   }
 
-  const right = randomInt(1, limit);
-  const left = randomInt(0, right - 1);
-  return { ...context, left, right };
+  const a = asNumber(context.a);
+  const b = asNumber(context.b);
+  const op = context.op === '-' ? '-' : '+';
+
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return context;
+  if (op === '-' && a < b) return context;
+
+  const expr = op === '-' ? a - b : a + b;
+  const delta = Math.max(1, Math.round(range.max * 0.15));
+  // Với `exprLeft` thì `expr __ c`; với `exprRight` thì `c __ expr`.
+  const higherCIsLess = form === 'exprLeft';
+  let c = expr;
+
+  if (relation === '=') {
+    c = expr;
+  } else if (relation === '>') {
+    c = higherCIsLess ? expr - randomInt(1, delta) : expr + randomInt(1, delta);
+  } else if (relation === '<') {
+    c = higherCIsLess ? expr + randomInt(1, delta) : expr - randomInt(1, delta);
+  } else {
+    c = expr + randomInt(-delta, delta);
+  }
+
+  return { ...context, c: clamp(c, range.min, range.max) };
 }
 
 function evaluateAnswer(rule: string, context: Context): { answer: string | number; derived: Context } {
@@ -225,12 +416,32 @@ function evaluateAnswer(rule: string, context: Context): { answer: string | numb
   if (rule === 'difference') return { answer: a - b, derived: {} };
   if (rule === 'missingAddend') return { answer: result - a, derived: {} };
   if (rule === 'missingSubtrahend') return { answer: a - result, derived: {} };
+  if (rule === 'missingMinuend') return { answer: result + a, derived: {} };
 
   if (rule === 'compareValues') {
     const answer = left === right ? '=' : left > right ? '>' : '<';
     return { answer, derived: {} };
   }
 
+  if (rule === 'compareExprNum' || rule === 'compareNumExpr') {
+    const op = context.op === '-' ? '-' : '+';
+    const exprValue = op === '-' ? a - b : a + b;
+    const answer =
+      rule === 'compareExprNum'
+        ? exprValue === c
+          ? '='
+          : exprValue > c
+          ? '>'
+          : '<'
+        : c === exprValue
+        ? '='
+        : c > exprValue
+        ? '>'
+        : '<';
+    return { answer, derived: { exprValue } };
+  }
+
+  // Giữ tương thích với template cũ nếu còn trong dữ liệu.
   if (rule === 'compareExpression') {
     const leftValue = a + b;
     const rightValue = c - d;
@@ -241,12 +452,17 @@ function evaluateAnswer(rule: string, context: Context): { answer: string | numb
   return { answer: '', derived: {} };
 }
 
+// ---------------------------------------------------------------------------
+// Constraints
+// ---------------------------------------------------------------------------
+
 function passesConstraint(
   rule: string,
   context: Context,
-  grade: Grade,
+  answer: string | number,
   difficulty: Difficulty,
-  answerRule: string
+  answerRule: string,
+  range: { min: number; max: number; resultMax?: number }
 ) {
   const a = asNumber(context.a);
   const b = asNumber(context.b);
@@ -255,7 +471,7 @@ function passesConstraint(
   const left = asNumber(context.left);
   const right = asNumber(context.right);
   const result = asNumber(context.result);
-  const limit = getLimit(grade, difficulty);
+  const limit = effectiveMaxOf(range);
   const carryRange = getCarryRange(difficulty);
   const inCarryRange = (value: number) =>
     value >= carryRange.min && value <= carryRange.max;
@@ -263,7 +479,7 @@ function passesConstraint(
   if (rule === 'valuesWithinLimit') {
     return [a, b, c, d, left, right, result]
       .filter((value) => Number.isFinite(value))
-      .every((value) => value >= 0 && value <= limit);
+      .every((value) => value >= range.min && value <= range.max);
   }
   if (rule === 'sumWithinLimit') return a + b <= limit;
   if (rule === 'differenceWithinLimit') return a <= limit && b <= limit;
@@ -272,11 +488,20 @@ function passesConstraint(
   if (rule === 'noBorrow') return noBorrow(a, b);
   if (rule === 'rightDifferenceNonNegative') return c >= d;
   if (rule === 'rightNoBorrow') return c >= d && ones(c) >= ones(d);
+  if (rule === 'exprNonNegative') return context.op === '-' ? a >= b : true;
   if (rule === 'resultGreaterThanA') return result > a;
   if (rule === 'aGreaterThanResult') return a > result;
   if (rule === 'missingAddWithinLimit') return result <= limit;
   if (rule === 'missingAddNoCarry') return noCarry(a, result - a);
   if (rule === 'missingSubNoBorrow') return noBorrow(a, a - result);
+  if (rule === 'answerWithinLimit') {
+    const numericAnswer = typeof answer === 'number' ? answer : Number(answer);
+    return (
+      Number.isFinite(numericAnswer) &&
+      numericAnswer >= 0 &&
+      numericAnswer <= limit
+    );
+  }
 
   if (rule === 'hasCarry') return hasCarry(a, b);
   if (rule === 'hasBorrow') return hasBorrow(a, b);
@@ -308,12 +533,92 @@ function passesConstraint(
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// Grade policy (D1)
+// ---------------------------------------------------------------------------
+
+interface PolicyContext {
+  grade: Grade;
+  effectiveTopic: EffectiveTopic;
+  carryNeed: CarryNeed;
+  rule: string;
+}
+
+function operationOf(
+  rule: string,
+  context: Context,
+  answer: string | number
+): { x: number; y: number; op: '+' | '-'; result: number } | null {
+  const a = asNumber(context.a);
+  const b = asNumber(context.b);
+  const result = asNumber(context.result);
+  const numericAnswer = typeof answer === 'number' ? answer : Number(answer);
+
+  if (rule === 'sum') return { x: a, y: b, op: '+', result: a + b };
+  if (rule === 'difference') return { x: a, y: b, op: '-', result: a - b };
+  if (rule === 'missingAddend') {
+    return { x: a, y: numericAnswer, op: '+', result: result };
+  }
+  if (rule === 'missingSubtrahend') {
+    return { x: a, y: numericAnswer, op: '-', result: result };
+  }
+  if (rule === 'missingMinuend') {
+    return { x: numericAnswer, y: a, op: '-', result: result };
+  }
+  if (rule === 'compareExprNum' || rule === 'compareNumExpr') {
+    const left = asNumber(context.a);
+    const right = asNumber(context.b);
+    const op = context.op === '-' ? '-' : '+';
+    const exprValue = op === '-' ? left - right : left + right;
+    return { x: left, y: right, op, result: exprValue };
+  }
+  return null;
+}
+
+function passesGradePolicy(
+  context: Context,
+  answer: string | number,
+  policy: PolicyContext
+): boolean {
+  const operation = operationOf(policy.rule, context, answer);
+  if (!operation) return true;
+
+  const { x, y, op, result } = operation;
+  const constraint = gameConfig.gradeConstraints[policy.grade];
+  const carries = op === '+' ? hasCarry(x, y) : x >= y && hasBorrow(x, y);
+
+  if (policy.grade === 0) {
+    const resultMax = 'resultMax' in constraint ? constraint.resultMax : 10;
+    if (x < 0 || y < 0 || result < 0) return false;
+    if (op === '-' && x < y) return false;
+    if (result > resultMax) return false;
+    return !carries;
+  }
+
+  if (policy.grade === 1) return !carries;
+
+  if (policy.effectiveTopic === 'add-sub') {
+    if (policy.carryNeed === undefined) return true;
+    return policy.carryNeed ? carries : !carries;
+  }
+
+  // find-number, comparison, carry: yêu cầu có nhớ/mượn ở Lớp 2.
+  if (policy.effectiveTopic === 'find-number' || policy.effectiveTopic === 'comparison' || policy.effectiveTopic === 'carry') {
+    return carries;
+  }
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Choices
+// ---------------------------------------------------------------------------
+
 function createChoices(
   answer: string | number,
   rule: string | null | undefined,
-  grade: Grade,
-  difficulty: Difficulty,
-  minOverride?: number,
+  range: { min: number; max: number; resultMax?: number },
+  floorOverride?: number,
   maxOverride?: number
 ) {
   if (rule === 'comparisonSigns') return ['>', '<', '='];
@@ -321,8 +626,8 @@ function createChoices(
   const numericAnswer = typeof answer === 'number' ? answer : Number(answer);
   if (!Number.isFinite(numericAnswer)) return [String(answer)];
 
-  const limit = maxOverride ?? getLimit(grade, difficulty);
-  const floor = Math.min(minOverride ?? 0, limit);
+  const limit = maxOverride ?? effectiveMaxOf(range);
+  const floor = Math.min(floorOverride ?? 0, limit);
   const values = new Set<number>([numericAnswer]);
   const offsets = shuffle([-10, -5, -3, -2, -1, 1, 2, 3, 5, 10, 11, -11]);
 
@@ -337,16 +642,26 @@ function createChoices(
 
   let guard = 0;
   while (values.size < 4 && guard < 20) {
-    values.add(randomInt(floor, limit));
+    values.add(randomInt(floor, Math.max(floor, limit)));
     guard += 1;
   }
 
   return shuffle(Array.from(values).slice(0, 4).map(String));
 }
 
-function mapQuestionType(template: QuestionTemplate, answerMode: AnswerMode, difficulty: Difficulty): Question['questionType'] {
+function mapQuestionType(
+  template: QuestionTemplate,
+  answerMode: AnswerMode,
+  difficulty: Difficulty
+): Question['questionType'] {
+  const isFindNumber = template.tags.includes('find-number');
+
   if (template.questionType === 'comparison-sign') {
     return answerMode === 'input' ? 'compare' : 'multiple-choice';
+  }
+
+  if (isFindNumber) {
+    return answerMode === 'input' ? 'fill-number' : 'multiple-choice';
   }
 
   if (answerMode === 'choice') return 'multiple-choice';
@@ -361,11 +676,14 @@ function mapQuestionType(template: QuestionTemplate, answerMode: AnswerMode, dif
   return template.questionType === 'missing-number' ? 'fill-number' : 'input';
 }
 
-function templateMatchesTopic(template: QuestionTemplate, topic: ConcreteTopic) {
-  if (topic === 'mixed') return true;
-  if (template.topic === topic) return true;
-  if (template.topic === 'missing-number' && template.tags.includes(topic)) return true;
-  return false;
+// ---------------------------------------------------------------------------
+// Single question generation
+// ---------------------------------------------------------------------------
+
+interface MakeQuestionOptions {
+  preferredComparison?: '>' | '<' | '=';
+  carryNeed?: CarryNeed;
+  pair?: { a: number; b: number };
 }
 
 function makeQuestion(
@@ -375,7 +693,7 @@ function makeQuestion(
   difficulty: Difficulty,
   answerMode: AnswerMode,
   index: number,
-  preferredAnswer?: '>' | '<' | '='
+  options: MakeQuestionOptions = {}
 ): Question | TemplateDiagnostic {
   const validationErrors = validateTemplate(template);
   if (validationErrors.length > 0) {
@@ -387,20 +705,59 @@ function makeQuestion(
     };
   }
 
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    const variables = applyComparisonPreference(
-      template,
-      buildVariables(template),
-      grade,
-      difficulty,
-      preferredAnswer
-    );
+  const range = getTopicRange(grade, topic, difficulty);
+  const effectiveTopic = effectiveTopicOf(template, topic);
+  const isComparison = template.topic === 'comparison';
+
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    let variables = buildVariables(template);
+    if (options.pair) {
+      variables = { ...variables, a: options.pair.a, b: options.pair.b };
+    }
+    variables = clampVariables(template, variables, range);
+
+    if (isComparison) {
+      variables = applyComparisonPreference(
+        template,
+        variables,
+        range,
+        options.preferredComparison
+      );
+      variables = clampVariables(template, variables, range);
+    }
+
+    const { answer, derived } = evaluateAnswer(template.answerRule, variables);
     const constraintsPass = template.constraints.every((constraint) =>
-      passesConstraint(constraint, variables, grade, difficulty, template.answerRule)
+      passesConstraint(constraint, variables, answer, difficulty, template.answerRule, range)
     );
     if (!constraintsPass) continue;
 
-    const { answer, derived } = evaluateAnswer(template.answerRule, variables);
+    const policyPass = passesGradePolicy(variables, answer, {
+      grade,
+      effectiveTopic,
+      carryNeed: options.carryNeed,
+      rule: template.answerRule,
+    });
+    if (!policyPass) continue;
+
+    if (
+      options.preferredComparison &&
+      isComparison &&
+      answer !== options.preferredComparison
+    ) {
+      continue;
+    }
+
+    const numericAnswer = typeof answer === 'number' ? answer : Number(answer);
+    const isSignAnswer =
+      template.answerRule === 'compareValues' ||
+      template.answerRule === 'compareExprNum' ||
+      template.answerRule === 'compareNumExpr';
+    if (!isSignAnswer) {
+      if (!Number.isFinite(numericAnswer) || numericAnswer < 0) continue;
+      if (numericAnswer > effectiveMaxOf(range)) continue;
+    }
+
     const isCarryTemplate = template.topic === 'carry';
     const carryRange = isCarryTemplate ? getCarryRange(difficulty) : undefined;
     const context: Context = {
@@ -409,23 +766,27 @@ function makeQuestion(
       answer,
       ...(isCarryTemplate && carryRange
         ? {
-            carryMode: template.answerRule === 'difference' ? 'subtraction-borrow' : 'addition-carry',
+            carryMode:
+              template.answerRule === 'difference'
+                ? 'subtraction-borrow'
+                : 'addition-carry',
             rangeMin: carryRange.min,
             rangeMax: carryRange.max,
           }
         : {}),
     };
+
     const questionType = mapQuestionType(template, answerMode, difficulty);
-    const choices = questionType === 'multiple-choice'
-      ? createChoices(
-          answer,
-          template.choicesRule,
-          grade,
-          difficulty,
-          carryRange?.min,
-          carryRange?.max
-        )
-      : undefined;
+    const choices =
+      questionType === 'multiple-choice'
+        ? createChoices(
+            answer,
+            template.choicesRule,
+            range,
+            undefined,
+            carryRange?.max
+          )
+        : undefined;
 
     return {
       id: `tpl-${template.id}-${Date.now()}-${index}-${attempt}`,
@@ -441,7 +802,7 @@ function makeQuestion(
       hint: renderTemplate(template.hintTemplate, context),
       solution: renderTemplate(template.solutionTemplate, context),
       variables: context,
-      timeLimit: getTimeLimit(template, difficulty),
+      timeLimit: getConfigTimeLimit(grade, difficulty),
     };
   }
 
@@ -453,11 +814,55 @@ function makeQuestion(
   };
 }
 
-const interactiveTimeLimit = (difficulty: Difficulty, base: number) => {
-  if (difficulty === 'easy') return Math.max(base, 35);
-  if (difficulty === 'medium') return Math.max(base, 30);
-  return Math.max(base, 25);
-};
+// ---------------------------------------------------------------------------
+// Pair cache (giới hạn không gian câu Mầm non — D6)
+// ---------------------------------------------------------------------------
+
+interface NumberPair {
+  a: number;
+  b: number;
+}
+
+const pairCache = new Map<string, NumberPair[]>();
+
+function getPairs(
+  grade: Grade,
+  difficulty: Difficulty,
+  operator: '+' | '-',
+  carryNeed: boolean
+): NumberPair[] {
+  const key = `${grade}|${difficulty}|${operator}|${carryNeed}`;
+  const cached = pairCache.get(key);
+  if (cached) return cached;
+
+  const range =
+    carryNeed && grade === 2
+      ? getCarryRange(difficulty)
+      : getTopicRange(grade, 'add-sub', difficulty);
+  const limit = effectiveMaxOf(range);
+  const pairs: NumberPair[] = [];
+
+  for (let a = Math.max(1, range.min); a <= range.max; a += 1) {
+    for (let b = Math.max(1, range.min); b <= range.max; b += 1) {
+      const result = operator === '+' ? a + b : a - b;
+      if (result < 0 || result > limit) continue;
+      const carries = operator === '+' ? hasCarry(a, b) : a >= b && hasBorrow(a, b);
+      if (operator === '-' && a < b) continue;
+      if (carryNeed ? !carries : carries) continue;
+      pairs.push({ a, b });
+    }
+  }
+
+  pairCache.set(key, pairs);
+  return pairs;
+}
+
+// ---------------------------------------------------------------------------
+// Interactive generators
+// ---------------------------------------------------------------------------
+
+const interactiveTimeLimit = (grade: Grade, difficulty: Difficulty, base: number) =>
+  Math.max(getConfigTimeLimit(grade, difficulty), base);
 
 const sortNumbersTimeLimit = (difficulty: Difficulty) => {
   if (difficulty === 'easy') return 60;
@@ -467,6 +872,11 @@ const sortNumbersTimeLimit = (difficulty: Difficulty) => {
 
 function uniqueNumbers(count: number, min: number, max: number) {
   const values = new Set<number>();
+  let guard = 0;
+  while (values.size < count && guard < count * 50) {
+    values.add(randomInt(min, max));
+    guard += 1;
+  }
   while (values.size < count) values.add(randomInt(min, max));
   return Array.from(values);
 }
@@ -497,7 +907,7 @@ function makeSortNumbersQuestion(
 ): Question {
   const count = difficulty === 'easy' ? 6 : difficulty === 'medium' ? randomInt(7, 8) : randomInt(9, 10);
   const max = difficulty === 'easy' ? 20 : 99;
-  const direction: SortNumbersPayload['direction'] = Math.random() < 0.5 ? 'asc' : 'desc';
+  const direction: SortNumbersPayload['direction'] = random() < 0.5 ? 'asc' : 'desc';
   const numbers = uniqueNumbers(count, 1, max).map(formatTwoDigits);
   const correctOrder = [...numbers].sort((a, b) =>
     direction === 'asc' ? Number(a) - Number(b) : Number(b) - Number(a)
@@ -534,36 +944,39 @@ function makeSortNumbersQuestion(
   };
 }
 
+interface MissingEquationOptions {
+  carry?: boolean;
+  range?: { min: number; max: number };
+  allowedTags?: MissingEquationPayload['pattern'][];
+}
+
 function makeMissingEquationQuestion(
   grade: Grade,
   topic: ConcreteTopic,
   difficulty: Difficulty,
   index: number,
-  options?: { carry?: boolean }
+  options: MissingEquationOptions = {}
 ): Question | null {
-  const carry = options?.carry ?? false;
-  const range = carry ? getCarryRange(difficulty) : { min: 1, max: difficulty === 'easy' ? 20 : 99 };
+  const carry = options.carry ?? false;
+  const range =
+    options.range ??
+    (carry ? getCarryRange(difficulty) : getTopicRange(grade, topic, difficulty));
   const patterns: MissingEquationPayload['pattern'][] =
-    difficulty === 'easy'
+    options.allowedTags ??
+    (difficulty === 'easy'
       ? ['blank-left-add', 'blank-right-add']
       : difficulty === 'medium'
       ? ['blank-left-add', 'blank-right-add', 'blank-right-subtract']
-      : ['blank-left-add', 'blank-right-add', 'blank-right-subtract', 'blank-left-subtract'];
+      : ['blank-left-add', 'blank-right-add', 'blank-right-subtract', 'blank-left-subtract']);
   const additionPatterns = patterns.filter((pattern) => pattern.includes('add'));
   const subtractionPatterns = patterns.filter((pattern) => pattern.includes('subtract'));
-
-  let topicPatterns: MissingEquationPayload['pattern'][];
-  if (topic === 'addition') {
-    topicPatterns = additionPatterns;
-  } else if (topic === 'subtraction') {
-    topicPatterns = subtractionPatterns;
-  } else if (topic === 'carry') {
-    const useAddition = Math.random() < gameConfig.carry.mix.addition;
-    const preferred = useAddition ? additionPatterns : subtractionPatterns;
-    topicPatterns = preferred.length ? preferred : patterns;
-  } else {
-    topicPatterns = patterns;
-  }
+  const useAddition = random() < 0.5;
+  const topicPatterns =
+    topic === 'carry'
+      ? useAddition
+        ? additionPatterns
+        : subtractionPatterns
+      : patterns;
 
   const pattern = pick(topicPatterns.length ? topicPatterns : patterns);
   const withinRange = (value: number) => value >= range.min && value <= range.max;
@@ -583,7 +996,7 @@ function makeMissingEquationQuestion(
       result = answer + known;
       operator = '+';
       blankPosition = 'left';
-      if (result > range.max || (carry && !withinRange(result))) continue;
+      if (result > range.max) continue;
       if (!(carry ? hasCarry(answer, known) : noCarry(answer, known))) continue;
     } else if (pattern === 'blank-right-add') {
       left = known;
@@ -591,7 +1004,7 @@ function makeMissingEquationQuestion(
       result = known + answer;
       operator = '+';
       blankPosition = 'right';
-      if (result > range.max || (carry && !withinRange(result))) continue;
+      if (result > range.max) continue;
       if (!(carry ? hasCarry(known, answer) : noCarry(known, answer))) continue;
     } else if (pattern === 'blank-right-subtract') {
       left = known + answer;
@@ -619,7 +1032,7 @@ function makeMissingEquationQuestion(
       }
     }
 
-    const choices = createMissingEquationChoices(answer, range.min, range.max);
+    const choices = createMissingEquationChoices(answer, 0, range.max);
     const payload: MissingEquationPayload = {
       kind: 'missing-equation',
       pattern,
@@ -632,6 +1045,7 @@ function makeMissingEquationQuestion(
     };
     const text = `${blankPosition === 'left' ? '__' : left} ${operator} ${blankPosition === 'right' ? '__' : right} = ${result}`;
     const carryMode = operator === '+' ? 'addition-carry' : 'subtraction-borrow';
+    const baseTime = interactiveTimeLimit(grade, difficulty, 30);
 
     return {
       id: `interactive-missing-equation-${Date.now()}-${index}`,
@@ -662,12 +1076,10 @@ function makeMissingEquationQuestion(
         left,
         right,
         result,
-        ...(carry
-          ? { carryMode, rangeMin: range.min, rangeMax: range.max }
-          : {}),
+        ...(carry ? { carryMode, rangeMin: range.min, rangeMax: range.max } : {}),
       },
       interactionPayload: payload,
-      timeLimit: interactiveTimeLimit(difficulty, 30),
+      timeLimit: baseTime,
     };
   }
 
@@ -706,7 +1118,7 @@ function makeClockHourQuestion(
     solution: `Kim giờ chỉ số ${hour}, nên đồng hồ chỉ ${hour} giờ.`,
     variables: { hour, minuteHand: 12 },
     interactionPayload: payload,
-    timeLimit: interactiveTimeLimit(difficulty, 25),
+    timeLimit: interactiveTimeLimit(grade, difficulty, 25),
   };
 }
 
@@ -749,7 +1161,7 @@ function makeWeekdayBlankQuestion(
     solution: `Dãy đúng là: ${sequence.join(', ')}. Ô trống là ${correct}.`,
     variables: { sequence: sequence.join(','), blankIndex, correct },
     interactionPayload: payload,
-    timeLimit: interactiveTimeLimit(difficulty, 25),
+    timeLimit: interactiveTimeLimit(grade, difficulty, 25),
   };
 }
 
@@ -760,7 +1172,7 @@ function makeRelativeDateQuestion(
   index: number
 ): Question {
   const calendarMode: RelativeDatePayload['calendarMode'] =
-    difficulty === 'easy' ? 'weekday' : Math.random() < 0.5 ? 'weekday' : 'monthDate';
+    difficulty === 'easy' ? 'weekday' : random() < 0.5 ? 'weekday' : 'monthDate';
   let correctMapping: RelativeDatePayload['correctMapping'];
 
   if (calendarMode === 'weekday') {
@@ -803,7 +1215,7 @@ function makeRelativeDateQuestion(
     solution: `Hôm qua: ${correctMapping.yesterday}, hôm nay: ${correctMapping.today}, ngày mai: ${correctMapping.tomorrow}.`,
     variables: { calendarMode, ...correctMapping, shuffledValues: shuffledValues.join(',') },
     interactionPayload: payload,
-    timeLimit: interactiveTimeLimit(difficulty, 35),
+    timeLimit: interactiveTimeLimit(grade, difficulty, 35),
   };
 }
 
@@ -813,37 +1225,97 @@ function makeInteractiveQuestion(
   difficulty: Difficulty,
   index: number
 ): Question | null {
-  // Ẩn phần So sánh với lớp không được cấu hình.
-  if (topic === 'comparison' && !isGradeEnabled(gameConfig.comparison.enabledForGrades, grade)) {
-    return null;
-  }
+  // Mầm non chỉ dùng template số học/so sánh.
+  if (grade === 0) return null;
 
   if (topic === 'carry') {
     return makeMissingEquationQuestion(grade, topic, difficulty, index, { carry: true });
   }
 
-  const makers: Array<() => Question | null> = [];
+  if (topic !== 'mixed') return null;
 
-  if (topic === 'addition' || topic === 'subtraction' || topic === 'mixed') {
-    makers.push(() => makeMissingEquationQuestion(grade, topic, difficulty, index));
-    if (isGradeEnabled(gameConfig.carry.enabledForGrades, grade) && topic === 'mixed') {
-      makers.push(() => makeMissingEquationQuestion(grade, topic, difficulty, index, { carry: true }));
-    }
-  }
+  const makers: Array<() => Question | null> = [
+    () => makeMissingEquationQuestion(grade, topic, difficulty, index),
+  ];
 
-  if (topic === 'comparison' || topic === 'mixed') {
-    if (isGradeEnabled(gameConfig.comparison.enabledForGrades, grade)) {
-      makers.push(() => makeSortNumbersQuestion(grade, topic, difficulty, index));
-    }
-    makers.push(
-      () => makeClockHourQuestion(grade, topic, difficulty, index),
-      () => makeWeekdayBlankQuestion(grade, topic, difficulty, index),
-      () => makeRelativeDateQuestion(grade, topic, difficulty, index)
+  if (isGradeEnabled(gameConfig.carry.enabledForGrades, grade)) {
+    makers.push(() =>
+      makeMissingEquationQuestion(grade, topic, difficulty, index, { carry: true })
     );
   }
 
-  if (makers.length === 0) return null;
+  makers.push(
+    () => makeSortNumbersQuestion(grade, topic, difficulty, index),
+    () => makeClockHourQuestion(grade, topic, difficulty, index),
+    () => makeWeekdayBlankQuestion(grade, topic, difficulty, index),
+    () => makeRelativeDateQuestion(grade, topic, difficulty, index)
+  );
+
   return pick(makers)();
+}
+
+// ---------------------------------------------------------------------------
+// Batch generation
+// ---------------------------------------------------------------------------
+
+function candidatesForTopic(
+  grade: Grade,
+  topic: ConcreteTopic,
+  difficulty: Difficulty
+): QuestionTemplate[] {
+  return templates.filter(
+    (template) =>
+      matchesList(grade, template.grade) &&
+      matchesList(difficulty, template.difficulty) &&
+      templateMatchesTopic(template, topic)
+  );
+}
+
+function addSubCandidates(
+  grade: Grade,
+  difficulty: Difficulty,
+  operator: '+' | '-',
+  carryNeed: boolean | undefined
+): QuestionTemplate[] {
+  return templates.filter((template) => {
+    if (!matchesList(grade, template.grade)) return false;
+    if (!matchesList(difficulty, template.difficulty)) return false;
+    if (!['addition', 'subtraction', 'carry'].includes(template.topic)) return false;
+    if (operatorOfTemplate(template) !== operator) return false;
+    // Lớp 2: nửa số câu cần nhớ/mượn lấy từ template carry, nửa còn lại lấy template thường.
+    if (carryNeed === true) return template.topic === 'carry';
+    if (carryNeed === false) return template.topic !== 'carry';
+    return true;
+  });
+}
+
+function findNumberCandidates(
+  grade: Grade,
+  difficulty: Difficulty
+): QuestionTemplate[] {
+  const allowedTags = allowedFindNumberTags(difficulty);
+  return templates.filter(
+    (template) =>
+      matchesList(grade, template.grade) &&
+      matchesList(difficulty, template.difficulty) &&
+      template.topic === 'missing-number' &&
+      template.tags.includes('find-number') &&
+      template.tags.some((tag) => allowedTags.includes(tag))
+  );
+}
+
+function comparisonCandidates(
+  grade: Grade,
+  difficulty: Difficulty,
+  form: ComparisonForm
+): QuestionTemplate[] {
+  return templates.filter(
+    (template) =>
+      matchesList(grade, template.grade) &&
+      matchesList(difficulty, template.difficulty) &&
+      template.topic === 'comparison' &&
+      comparisonFormOf(template) === form
+  );
 }
 
 export function generateQuestionBatch(
@@ -851,65 +1323,93 @@ export function generateQuestionBatch(
   topic: ConcreteTopic,
   difficulty: Difficulty,
   count: number,
-  answerMode: AnswerMode = 'auto'
+  answerMode: AnswerMode = 'auto',
+  options: BatchOptions = {}
 ): QuestionBatch {
   const diagnostics: TemplateDiagnostic[] = [];
-  const matchingTemplates = templates.filter(
-    (template) =>
-      matchesList(grade, template.grade) &&
-      matchesList(difficulty, template.difficulty) &&
-      templateMatchesTopic(template, topic) &&
-      !(
-        template.topic === 'comparison' &&
-        !isGradeEnabled(gameConfig.comparison.enabledForGrades, grade)
-      )
-  );
-
+  const plans: BatchOptions = {
+    ...buildPlans(grade, topic, count, options.rng ?? random),
+    ...options,
+  };
   const questions: Question[] = [];
   const recentKeys = new Set<string>();
+  const usedPairs = new Set<string>();
   const comparisonCounts = { greater: 0, equal: 0, less: 0 };
+  const maxIterations = Math.max(count * 40, 400);
 
-  for (let index = 0; questions.length < count && index < count * 20; index += 1) {
+  for (let iteration = 0; questions.length < count && iteration < maxIterations; iteration += 1) {
+    // Slot giữ nguyên khi câu bị trùng để quota không bị lệch.
+    const slot = questions.length;
+
+    const interactiveAllowed = grade > 0 && (topic === 'mixed' || topic === 'carry');
     const shouldTryInteractive =
-      index % 3 === 1 || (topic === 'mixed' && Math.random() < 0.45) || Math.random() < 0.25;
-    const interactiveQuestion = shouldTryInteractive
-      ? makeInteractiveQuestion(grade, topic, difficulty, index)
-      : null;
+      interactiveAllowed &&
+      (topic === 'carry' ? random() < 0.5 : iteration % 3 === 1 || random() < 0.4);
 
-    if (interactiveQuestion) {
-      const key = `${interactiveQuestion.templateId}:${interactiveQuestion.text}:${interactiveQuestion.correctAnswer}`;
-      if (recentKeys.has(key)) continue;
-      recentKeys.add(key);
-      questions.push(interactiveQuestion);
-      continue;
+    if (shouldTryInteractive) {
+      const interactiveQuestion = makeInteractiveQuestion(grade, topic, difficulty, iteration);
+      if (interactiveQuestion) {
+        const key = `${interactiveQuestion.templateId}:${interactiveQuestion.text}:${interactiveQuestion.correctAnswer}`;
+        if (recentKeys.has(key)) continue;
+        recentKeys.add(key);
+        questions.push(interactiveQuestion);
+        continue;
+      }
     }
 
-    if (matchingTemplates.length === 0) {
-      const fallbackInteractive = makeInteractiveQuestion(grade, topic, difficulty, index);
-      if (fallbackInteractive) questions.push(fallbackInteractive);
-      break;
+    const operatorPlan = plans.operatorPlan;
+    const carryPlan = plans.carryPlan;
+    const formPlan = plans.formPlan;
+    const operator = operatorPlan?.[slot % operatorPlan.length];
+    const carryNeed = carryPlan?.[slot % carryPlan.length];
+    const form = formPlan?.[slot % formPlan.length];
+
+    let candidates: QuestionTemplate[];
+    if (topic === 'add-sub') {
+      const chosenOperator = operator ?? (random() < 0.5 ? '+' : '-');
+      candidates = addSubCandidates(grade, difficulty, chosenOperator, carryNeed);
+    } else if (topic === 'find-number') {
+      candidates = findNumberCandidates(grade, difficulty);
+    } else if (topic === 'comparison') {
+      const chosenForm = form ?? pick<ComparisonForm>(['twoNumbers', 'exprLeft', 'exprRight']);
+      candidates = comparisonCandidates(grade, difficulty, chosenForm);
+    } else {
+      candidates = candidatesForTopic(grade, topic, difficulty);
+    }
+
+    if (candidates.length === 0) {
+      const fallbackCandidates = candidatesForTopic(grade, topic, difficulty);
+      if (fallbackCandidates.length === 0) break;
+      candidates = fallbackCandidates;
     }
 
     const equalTarget = Math.ceil(
       comparisonCounts.greater * gameConfig.comparisonSigns.minEqualToGreaterRatio
     );
     const shouldForceEqual =
-      (topic === 'comparison' || topic === 'mixed') && comparisonCounts.equal < equalTarget;
-    const comparisonValueTemplates = matchingTemplates.filter(
-      (template) => template.answerRule === 'compareValues'
-    );
-    const template = shouldForceEqual && comparisonValueTemplates.length > 0
-      ? pick(comparisonValueTemplates)
-      : pick(matchingTemplates);
-    const question = makeQuestion(
-      template,
-      grade,
-      topic,
-      difficulty,
-      answerMode,
-      index,
-      shouldForceEqual ? '=' : undefined
-    );
+      topic === 'comparison' && comparisonCounts.equal < equalTarget;
+
+    const template = pick(candidates);
+
+    let pair: { a: number; b: number } | undefined;
+    if (topic === 'add-sub') {
+      const chosenOperator = operator ?? operatorOfTemplate(template);
+      const needCarry = grade === 2 ? carryNeed === true : false;
+      const pairs = getPairs(grade, difficulty, chosenOperator, needCarry);
+      if (pairs.length > 0) {
+        const available = pairs.filter((item) => !usedPairs.has(`${chosenOperator}|${item.a}|${item.b}`));
+        const chosen = available.length > 0 ? pick(available) : pick(pairs);
+        if (available.length === 0) usedPairs.clear();
+        usedPairs.add(`${chosenOperator}|${chosen.a}|${chosen.b}`);
+        pair = chosen;
+      }
+    }
+
+    const question = makeQuestion(template, grade, topic, difficulty, answerMode, iteration, {
+      preferredComparison: shouldForceEqual ? '=' : undefined,
+      carryNeed: topic === 'add-sub' ? carryNeed : undefined,
+      pair,
+    });
 
     if ('type' in question) {
       diagnostics.push(question);
@@ -919,11 +1419,13 @@ export function generateQuestionBatch(
     const key = `${question.templateId}:${question.text}`;
     if (recentKeys.has(key)) continue;
     recentKeys.add(key);
+
     if (question.correctAnswer === '>' || question.correctAnswer === '=' || question.correctAnswer === '<') {
       if (question.correctAnswer === '>') comparisonCounts.greater += 1;
       if (question.correctAnswer === '=') comparisonCounts.equal += 1;
       if (question.correctAnswer === '<') comparisonCounts.less += 1;
     }
+
     questions.push(question);
   }
 

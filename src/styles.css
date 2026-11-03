@@ -15,6 +15,12 @@
   --danger: #f06464;
   --warning: #ffbf47;
   --card: #ffffff;
+  --practice: #58b66b;
+  --practice-soft: #e8f8ec;
+  --challenge: #ff8a65;
+  --challenge-soft: #fff0ea;
+  --accent: var(--leaf);
+  --accent-soft: #e8f8ec;
   --app-max: 1120px;
   --tap-min: 48px;
 }
@@ -491,11 +497,11 @@ input:focus {
 .map {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(5, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 14px;
   min-height: 280px;
   padding: 20px;
-  overflow-x: auto;
+  overflow: visible;
   border-radius: 8px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.12)),
@@ -523,12 +529,12 @@ input:focus {
   font-weight: 700;
 }
 
-.map-node.addition {
-  background: #e8f8ec;
+.map-node.add-sub {
+  background: linear-gradient(135deg, #e8f8ec, #fff4d2);
 }
 
-.map-node.subtraction {
-  background: #fff4d2;
+.map-node.find-number {
+  background: #f0f4ff;
 }
 
 .map-node.carry {
@@ -545,6 +551,67 @@ input:focus {
 
 .map-node.tower {
   background: #f1eeff;
+}
+
+/* ===== Theme Luyện tập / Thử thách ===== */
+.app-shell[data-mode='practice'] {
+  --accent: var(--practice);
+  --accent-soft: var(--practice-soft);
+}
+
+.app-shell[data-mode='challenge'] {
+  --accent: var(--challenge);
+  --accent-soft: var(--challenge-soft);
+}
+
+.app-shell[data-mode] .panel,
+.app-shell[data-mode] .quiz-panel {
+  border-color: color-mix(in srgb, var(--accent) 35%, white);
+}
+
+.app-shell[data-mode] .map-node:not(.locked) {
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--accent) 55%, white);
+}
+
+.app-shell[data-mode='challenge'] .primary-button:not(.coral) {
+  background: var(--accent);
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--accent) 65%, #7a2d12);
+}
+
+/* ===== Mầm non: chữ và nút lớn hơn ===== */
+.app-shell[data-grade='0'] {
+  --question-size: clamp(2.3rem, 7vw, 3.6rem);
+  --choice-min: 64px;
+}
+
+.app-shell[data-grade='0'] .question-box {
+  min-height: 184px;
+  font-size: var(--question-size);
+}
+
+.app-shell[data-grade='0'] .question-box.medium-question {
+  font-size: clamp(1.6rem, 4.6vw, 2.5rem);
+}
+
+.app-shell[data-grade='0'] .question-box.long-question {
+  font-size: clamp(1.3rem, 3.6vw, 2rem);
+}
+
+.app-shell[data-grade='0'] .option-card,
+.app-shell[data-grade='0'] .answer-button {
+  min-height: var(--choice-min);
+}
+
+.app-shell[data-grade='0'] .map-node {
+  min-height: 200px;
+}
+
+.app-shell[data-grade='0'] .map-node strong {
+  font-size: 1.3rem;
+}
+
+.app-shell[data-grade='0'] .map-node small {
+  font-size: 1rem;
 }
 
 .quiz-panel {
@@ -1478,7 +1545,7 @@ input:focus {
   }
 
   .map {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .map-node {

@@ -2,7 +2,7 @@
   {
     "id": "addition-basic-no-carry",
     "sourceSkillId": "3.1.1",
-    "grade": [1, 2],
+    "grade": [0, 1, 2],
     "topic": "addition",
     "difficulty": ["easy", "medium", "hard"],
     "questionType": "number-input",
@@ -51,7 +51,7 @@
   {
     "id": "subtraction-basic-no-borrow",
     "sourceSkillId": "3.1.4",
-    "grade": [1, 2],
+    "grade": [0, 1, 2],
     "topic": "subtraction",
     "difficulty": ["easy", "medium", "hard"],
     "questionType": "number-input",
@@ -100,11 +100,11 @@
   {
     "id": "comparison-two-numbers",
     "sourceSkillId": "1.1.4",
-    "grade": [1, 2],
+    "grade": [0, 1, 2],
     "topic": "comparison",
     "difficulty": ["easy", "medium", "hard"],
     "questionType": "comparison-sign",
-    "tags": ["comparison", "sign"],
+    "tags": ["comparison", "two-numbers", "sign"],
     "variables": {
       "left": { "type": "integer", "min": 0, "max": 99 },
       "right": { "type": "integer", "min": 0, "max": 99 }
@@ -122,28 +122,203 @@
     ]
   },
   {
-    "id": "comparison-expression",
+    "id": "comparison-expr-left-add",
     "sourceSkillId": "8.3.2",
     "grade": [1, 2],
     "topic": "comparison",
-    "difficulty": ["medium", "hard"],
+    "difficulty": ["easy", "medium", "hard"],
     "questionType": "comparison-sign",
-    "tags": ["comparison", "expression", "no-carry", "no-borrow"],
+    "tags": ["comparison", "expr-left"],
     "variables": {
       "a": { "type": "integer", "min": 1, "max": 80 },
-      "b": { "type": "integer", "min": 1, "max": 40 },
-      "c": { "type": "integer", "min": 2, "max": 90 },
-      "d": { "type": "integer", "min": 1, "max": 50 }
+      "b": { "type": "integer", "min": 1, "max": 80 },
+      "c": { "type": "integer", "min": 1, "max": 99 },
+      "op": { "type": "choice", "values": ["+"] }
     },
-    "constraints": ["sumWithinLimit", "noCarry", "rightDifferenceNonNegative", "rightNoBorrow"],
-    "promptTemplate": "{{a}} + {{b}} __ {{c}} - {{d}}",
-    "answerRule": "compareExpression",
+    "constraints": ["valuesWithinLimit", "exprNonNegative"],
+    "promptTemplate": "{{a}} + {{b}} __ {{c}}",
+    "answerRule": "compareExprNum",
     "choicesRule": "comparisonSigns",
-    "hintTemplate": "Tính từng vế trước: {{a}} + {{b}} và {{c}} - {{d}}, rồi so sánh hai kết quả.",
-    "solutionTemplate": "{{a}} + {{b}} = {{leftValue}}. {{c}} - {{d}} = {{rightValue}}. Vì vậy {{leftValue}} {{answer}} {{rightValue}}.",
+    "hintTemplate": "Tính {{a}} + {{b}} trước, rồi so sánh kết quả với {{c}}.",
+    "solutionTemplate": "{{a}} + {{b}} = {{exprValue}}. Vì vậy {{exprValue}} {{answer}} {{c}}.",
+    "timeLimitSeconds": 30,
+    "validationExamples": [
+      { "variables": { "a": 2, "b": 3, "c": 4, "op": "+" }, "answer": ">" },
+      { "variables": { "a": 4, "b": 5, "c": 9, "op": "+" }, "answer": "=" }
+    ]
+  },
+  {
+    "id": "comparison-expr-left-sub",
+    "sourceSkillId": "8.3.2",
+    "grade": [1, 2],
+    "topic": "comparison",
+    "difficulty": ["easy", "medium", "hard"],
+    "questionType": "comparison-sign",
+    "tags": ["comparison", "expr-left"],
+    "variables": {
+      "a": { "type": "integer", "min": 1, "max": 80 },
+      "b": { "type": "integer", "min": 1, "max": 80 },
+      "c": { "type": "integer", "min": 1, "max": 99 },
+      "op": { "type": "choice", "values": ["-"] }
+    },
+    "constraints": ["valuesWithinLimit", "exprNonNegative"],
+    "promptTemplate": "{{a}} - {{b}} __ {{c}}",
+    "answerRule": "compareExprNum",
+    "choicesRule": "comparisonSigns",
+    "hintTemplate": "Tính {{a}} - {{b}} trước, rồi so sánh kết quả với {{c}}.",
+    "solutionTemplate": "{{a}} - {{b}} = {{exprValue}}. Vì vậy {{exprValue}} {{answer}} {{c}}.",
+    "timeLimitSeconds": 30,
+    "validationExamples": [
+      { "variables": { "a": 7, "b": 3, "c": 5, "op": "-" }, "answer": "<" },
+      { "variables": { "a": 9, "b": 4, "c": 5, "op": "-" }, "answer": "=" }
+    ]
+  },
+  {
+    "id": "comparison-expr-right-add",
+    "sourceSkillId": "8.3.2",
+    "grade": [1, 2],
+    "topic": "comparison",
+    "difficulty": ["easy", "medium", "hard"],
+    "questionType": "comparison-sign",
+    "tags": ["comparison", "expr-right"],
+    "variables": {
+      "a": { "type": "integer", "min": 1, "max": 80 },
+      "b": { "type": "integer", "min": 1, "max": 80 },
+      "c": { "type": "integer", "min": 1, "max": 99 },
+      "op": { "type": "choice", "values": ["+"] }
+    },
+    "constraints": ["valuesWithinLimit", "exprNonNegative"],
+    "promptTemplate": "{{c}} __ {{a}} + {{b}}",
+    "answerRule": "compareNumExpr",
+    "choicesRule": "comparisonSigns",
+    "hintTemplate": "Tính {{a}} + {{b}} trước, rồi so sánh {{c}} với kết quả.",
+    "solutionTemplate": "{{a}} + {{b}} = {{exprValue}}. Vì vậy {{c}} {{answer}} {{exprValue}}.",
+    "timeLimitSeconds": 30,
+    "validationExamples": [
+      { "variables": { "a": 2, "b": 3, "c": 6, "op": "+" }, "answer": ">" },
+      { "variables": { "a": 4, "b": 5, "c": 9, "op": "+" }, "answer": "=" }
+    ]
+  },
+  {
+    "id": "comparison-expr-right-sub",
+    "sourceSkillId": "8.3.2",
+    "grade": [1, 2],
+    "topic": "comparison",
+    "difficulty": ["easy", "medium", "hard"],
+    "questionType": "comparison-sign",
+    "tags": ["comparison", "expr-right"],
+    "variables": {
+      "a": { "type": "integer", "min": 1, "max": 80 },
+      "b": { "type": "integer", "min": 1, "max": 80 },
+      "c": { "type": "integer", "min": 1, "max": 99 },
+      "op": { "type": "choice", "values": ["-"] }
+    },
+    "constraints": ["valuesWithinLimit", "exprNonNegative"],
+    "promptTemplate": "{{c}} __ {{a}} - {{b}}",
+    "answerRule": "compareNumExpr",
+    "choicesRule": "comparisonSigns",
+    "hintTemplate": "Tính {{a}} - {{b}} trước, rồi so sánh {{c}} với kết quả.",
+    "solutionTemplate": "{{a}} - {{b}} = {{exprValue}}. Vì vậy {{c}} {{answer}} {{exprValue}}.",
+    "timeLimitSeconds": 30,
+    "validationExamples": [
+      { "variables": { "a": 7, "b": 3, "c": 6, "op": "-" }, "answer": ">" },
+      { "variables": { "a": 9, "b": 4, "c": 5, "op": "-" }, "answer": "=" }
+    ]
+  },
+  {
+    "id": "find-addend-right",
+    "sourceSkillId": "3.1.3",
+    "grade": [1, 2],
+    "topic": "missing-number",
+    "difficulty": ["easy", "medium", "hard"],
+    "questionType": "missing-number",
+    "tags": ["missing-number", "addition", "find-number", "blank-right-add"],
+    "variables": {
+      "a": { "type": "integer", "min": 1, "max": 80 },
+      "result": { "type": "integer", "min": 2, "max": 99 }
+    },
+    "constraints": ["resultGreaterThanA", "missingAddWithinLimit", "valuesWithinLimit"],
+    "promptTemplate": "{{a}} + __ = {{result}}",
+    "answerRule": "missingAddend",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Muốn tìm số còn thiếu, lấy {{result}} - {{a}}.",
+    "solutionTemplate": "Số cần điền là {{result}} - {{a}} = {{answer}}. Vậy {{a}} + {{answer}} = {{result}}.",
     "timeLimitSeconds": 25,
     "validationExamples": [
-      { "variables": { "a": 34, "b": 23, "c": 68, "d": 34 }, "answer": ">" }
+      { "variables": { "a": 2, "result": 5 }, "answer": 3 },
+      { "variables": { "a": 4, "result": 9 }, "answer": 5 }
+    ]
+  },
+  {
+    "id": "find-addend-left",
+    "sourceSkillId": "3.1.3",
+    "grade": [1, 2],
+    "topic": "missing-number",
+    "difficulty": ["easy", "medium", "hard"],
+    "questionType": "missing-number",
+    "tags": ["missing-number", "addition", "find-number", "blank-left-add"],
+    "variables": {
+      "a": { "type": "integer", "min": 1, "max": 80 },
+      "result": { "type": "integer", "min": 2, "max": 99 }
+    },
+    "constraints": ["resultGreaterThanA", "missingAddWithinLimit", "valuesWithinLimit"],
+    "promptTemplate": "__ + {{a}} = {{result}}",
+    "answerRule": "missingAddend",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Số cần tìm đứng trước, nên lấy {{result}} - {{a}}.",
+    "solutionTemplate": "Số cần điền là {{result}} - {{a}} = {{answer}}. Vậy {{answer}} + {{a}} = {{result}}.",
+    "timeLimitSeconds": 25,
+    "validationExamples": [
+      { "variables": { "a": 3, "result": 8 }, "answer": 5 },
+      { "variables": { "a": 6, "result": 9 }, "answer": 3 }
+    ]
+  },
+  {
+    "id": "find-subtrahend",
+    "sourceSkillId": "8.2.6",
+    "grade": [1, 2],
+    "topic": "missing-number",
+    "difficulty": ["hard"],
+    "questionType": "missing-number",
+    "tags": ["missing-number", "subtraction", "find-number", "blank-right-subtract"],
+    "variables": {
+      "a": { "type": "integer", "min": 3, "max": 99 },
+      "result": { "type": "integer", "min": 1, "max": 90 }
+    },
+    "constraints": ["aGreaterThanResult", "answerWithinLimit", "valuesWithinLimit"],
+    "promptTemplate": "{{a}} - __ = {{result}}",
+    "answerRule": "missingSubtrahend",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Muốn tìm số bị bớt đi, lấy {{a}} - {{result}}.",
+    "solutionTemplate": "Số cần điền là {{a}} - {{result}} = {{answer}}. Vậy {{a}} - {{answer}} = {{result}}.",
+    "timeLimitSeconds": 25,
+    "validationExamples": [
+      { "variables": { "a": 9, "result": 4 }, "answer": 5 },
+      { "variables": { "a": 15, "result": 7 }, "answer": 8 }
+    ]
+  },
+  {
+    "id": "find-minuend",
+    "sourceSkillId": "8.2.6",
+    "grade": [1, 2],
+    "topic": "missing-number",
+    "difficulty": ["hard"],
+    "questionType": "missing-number",
+    "tags": ["missing-number", "subtraction", "find-number", "blank-left-subtract"],
+    "variables": {
+      "a": { "type": "integer", "min": 2, "max": 90 },
+      "result": { "type": "integer", "min": 1, "max": 90 }
+    },
+    "constraints": ["answerWithinLimit", "valuesWithinLimit"],
+    "promptTemplate": "__ - {{a}} = {{result}}",
+    "answerRule": "missingMinuend",
+    "choicesRule": "nearbyNumbers",
+    "hintTemplate": "Ô trống là số đứng trước phép trừ, nên cộng {{result}} với {{a}}.",
+    "solutionTemplate": "Số cần điền là {{result}} + {{a}} = {{answer}}. Vậy {{answer}} - {{a}} = {{result}}.",
+    "timeLimitSeconds": 25,
+    "validationExamples": [
+      { "variables": { "a": 3, "result": 5 }, "answer": 8 },
+      { "variables": { "a": 7, "result": 8 }, "answer": 15 }
     ]
   },
   {
